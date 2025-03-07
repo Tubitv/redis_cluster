@@ -1,0 +1,127 @@
+# Redis Cluster Demo
+
+## Section
+
+```elixir
+{:ok, conn} = Redix.start_link(host: "localhost", port: 7000)
+```
+
+```elixir
+shards = Redix.command!(conn, ~w[cluster shards])
+```
+
+```elixir
+parsed_shards = RedisCluster.Cluster.ShardParser.parse(shards)
+```
+
+```elixir
+slots = Redix.command!(conn, ~w[cluster slots])
+```
+
+```elixir
+parsed_slots = RedisCluster.Cluster.SlotParser.parse(slots)
+```
+
+```elixir
+Enum.sort(parsed_shards) == Enum.sort(parsed_slots)
+```
+
+```elixir
+defmodule Key do
+  def hashtag(key) do
+    with [_leader, rest] <- String.split(key, "{", parts: 2),
+         [hashtag, _trailer] when hashtag != "" <- String.split(rest, "}", parts: 2) do
+      hashtag
+    else
+      _ -> nil
+    end
+  end
+end
+```
+
+```elixir
+Key.hashtag("{}")
+```
+
+```elixir
+Key.hashtag("{1234}.test")
+```
+
+```elixir
+Key.hashtag("test.{12355}")
+```
+
+```elixir
+Key.hashtag("{}.{12345}")
+```
+
+```elixir
+Key.hashtag("{12345}.{67889}")
+```
+
+```elixir
+Key.hashtag("{12345}.{}")
+```
+
+```elixir
+config = %RedisCluster.Configuration{
+  host: "localhost",
+  port: 7000,
+  name: Test.Redis,
+  registry: Test.Redis.Registry__,
+  pool_size: 3
+}
+```
+
+```elixir
+{:ok, pid} = RedisCluster.Cluster.start_link(config)
+```
+
+```elixir
+Kino.Process.render_sup_tree(pid)
+```
+
+```elixir
+Registry.count(config.registry)
+```
+
+```elixir
+RedisCluster.Cluster.set(config, "hello", "world")
+```
+
+```elixir
+RedisCluster.Cluster.get(config, "hello")
+```
+
+```elixir
+RedisCluster.Cluster.set(config, "hello4", "fourth")
+```
+
+```elixir
+RedisCluster.Cluster.get(config, "hello4")
+```
+
+```elixir
+RedisCluster.Cluster.command(config, ~w[CLUSTER KEYSLOT hello2], key: "hello2")
+```
+
+```elixir
+RedisCluster.Key.hash_slot("hello4")
+```
+
+```elixir
+slot_id = RedisCluster.HashSlots.lookup(config.name, 15864)
+```
+
+```elixir
+conn = RedisCluster.Pool.get_conn(config, :replica, slot_id)
+```
+
+```elixir
+Redix.command!(conn, ~w[keys *])
+```
+
+```elixir
+# Redix.command(conn, ~w[get hello2])
+Redix.command(conn, ~w[info]) |> elem(1) |> IO.puts
+```
