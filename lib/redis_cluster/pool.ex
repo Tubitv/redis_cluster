@@ -55,7 +55,9 @@ defmodule RedisCluster.Pool do
         name: name
       ]
 
-      spec = Supervisor.child_spec({Redix, conn_opts}, id: {Redix, name})
+      args = {node_info.role, conn_opts}
+
+      spec = Supervisor.child_spec({RedisCluster.Connection, args}, id: {Redix, name})
 
       DynamicSupervisor.start_child(supervisor_name, spec)
     end

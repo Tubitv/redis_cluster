@@ -98,11 +98,11 @@ RedisCluster.Cluster.set(config, "hello4", "fourth")
 ```
 
 ```elixir
-RedisCluster.Cluster.get(config, "hello4")
+RedisCluster.Cluster.get(config, "hello4", role: :replica)
 ```
 
 ```elixir
-RedisCluster.Cluster.command(config, ~w[CLUSTER KEYSLOT hello2], key: "hello2")
+RedisCluster.Cluster.command(config, ~w[client info], key: "hello4", role: :master)
 ```
 
 ```elixir
