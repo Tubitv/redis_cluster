@@ -83,6 +83,7 @@ defmodule RedisCluster.Cluster do
   defp lookup(config, slots, role) do
     config.name
     |> HashSlots.lookup_conn_info(slots, role)
+    |> Enum.sort()
     |> pick_consistent()
   end
 

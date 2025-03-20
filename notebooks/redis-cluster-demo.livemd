@@ -3,7 +3,7 @@
 ## Section
 
 ```elixir
-{:ok, conn} = Redix.start_link(host: "localhost", port: 7000)
+{:ok, conn} = Redix.start_link(host: "localhost", port: 9000)
 ```
 
 ```elixir
@@ -66,7 +66,7 @@ Key.hashtag("{12345}.{}")
 ```elixir
 config = %RedisCluster.Configuration{
   host: "localhost",
-  port: 7000,
+  port: 9000,
   name: Test.Redis,
   registry: Test.Redis.Registry__,
   pool: Test.Redis.Pool__,
@@ -85,15 +85,23 @@ Kino.Process.render_sup_tree(pid)
 ```
 
 ```elixir
+RedisCluster.Cluster.command(config, ~w[cluster shards], key: "test")
+```
+
+```elixir
+RedisCluster.Cluster.command(config, ~w[cluster slots], key: "test")
+```
+
+```elixir
 Registry.count(config.registry)
 ```
 
 ```elixir
-hash_slot = RedisCluster.Key.hash_slot("hello")
+RedisCluster.HashSlots.all_slots(config.name)
 ```
 
 ```elixir
-:ets.tab2list(config.name)
+hash_slot = RedisCluster.Key.hash_slot("hello")
 ```
 
 ```elixir

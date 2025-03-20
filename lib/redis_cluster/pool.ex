@@ -7,8 +7,6 @@ defmodule RedisCluster.Pool do
 
   alias RedisCluster.Cluster.NodeInfo
 
-  ## API
-
   @doc false
   def start_link(config) do
     DynamicSupervisor.start_link(__MODULE__, config, name: config.pool)
@@ -43,7 +41,7 @@ defmodule RedisCluster.Pool do
     end
   end
 
-  @spec with_retry(
+  @spec get_conn(
           Configuration.t(),
           role :: :master | :replica,
           port :: non_neg_integer()
