@@ -11,12 +11,14 @@ defmodule RedisCluster.Cluster.SlotParser do
 
   defp parse_node([start, stop | nodes]) do
     for {[host, port, id | _meta], n} <- Enum.with_index(nodes) do
+      role = if(n == 0, do: :master, else: :replica)
+
       %RedisCluster.Cluster.NodeInfo{
         id: id,
-        slots: [RedisCluster.HashSlots.slot_id(start, stop)],
+        slots: [RedisCluster.HashSlots.slot_id(start, stop, role, host, port)],
         host: host,
         port: port,
-        role: if(n == 0, do: :master, else: :replica)
+        role: role
       }
     end
   end

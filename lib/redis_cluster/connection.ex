@@ -1,5 +1,5 @@
 defmodule RedisCluster.Connection do
-  @doc """
+  @moduledoc """
   A shim module to start a Redix connection.
   This is necessary to send the READONLY command to replicas.
   When in read-write mode, replicas will redirect to the master.

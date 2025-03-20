@@ -5,18 +5,13 @@ defmodule RedisCluster.Pool do
 
   use DynamicSupervisor
 
-  alias RedisCluster.Pool
   alias RedisCluster.Cluster.NodeInfo
 
   ## API
 
   @doc false
   def start_link(config) do
-    DynamicSupervisor.start_link(__MODULE__, config, name: name(config))
-  end
-
-  def name(config) do
-    Module.concat(config.name, "PoolSupervisor__")
+    DynamicSupervisor.start_link(__MODULE__, config, name: config.pool)
   end
 
   @impl DynamicSupervisor
@@ -25,7 +20,7 @@ defmodule RedisCluster.Pool do
   end
 
   def stop_pool(config) do
-    name = name(config)
+    name = config.pool
 
     for {_id, pid, _type, _modules} when is_pid(pid) <-
           DynamicSupervisor.which_children(name) do
@@ -33,29 +28,14 @@ defmodule RedisCluster.Pool do
     end
   end
 
-  require Logger
+  def start_pool(config, %NodeInfo{host: host, port: port, role: role}) do
+    supervisor_name = config.pool
 
-  def start_pool(config, node_info = %NodeInfo{}) do
-    Logger.debug("Starting pool for #{config.name} #{inspect(node_info)}")
+    for index <- 1..config.pool_size do
+      name = registry_name(config.registry, host, port, index - 1)
 
-    # ???: Do we need other options?
-
-    # Creates redundant connections to a node if it has multiple slot ranges. 
-    # It would be nice to consolidate connections but that complicates name registration/supervision.
-
-    supervisor_name = name(config)
-
-    for index <- 1..config.pool_size, slot_id <- node_info.slots do
-      name = registry_name(config.registry, slot_id, node_info.role, index - 1)
-      Logger.debug("Creating connection #{inspect(name)}")
-
-      conn_opts = [
-        host: node_info.host,
-        port: node_info.port,
-        name: name
-      ]
-
-      args = {node_info.role, conn_opts}
+      conn_opts = [host: host, port: port, name: name]
+      args = {role, conn_opts}
 
       spec = Supervisor.child_spec({RedisCluster.Connection, args}, id: {Redix, name})
 
@@ -63,19 +43,22 @@ defmodule RedisCluster.Pool do
     end
   end
 
-  def get_conn(config, role, slot_id) do
+  @spec with_retry(
+          Configuration.t(),
+          role :: :master | :replica,
+          port :: non_neg_integer()
+        ) :: pid()
+  def get_conn(config, host, port) do
     # Ensure selecting the same connection based on the caller PID
     index = :erlang.phash2(self(), config.pool_size)
-    key = {slot_id, role, index}
-
-    Logger.debug("Getting conn for #{inspect(key)}")
+    key = {host, port, index}
 
     [{pid, _value} | _] = Registry.lookup(config.registry, key)
 
     pid
   end
 
-  defp registry_name(registry, slot_id, role, index) do
-    {:via, Registry, {registry, {slot_id, role, index}}}
+  defp registry_name(registry, host, port, index) do
+    {:via, Registry, {registry, {host, port, index}}}
   end
 end

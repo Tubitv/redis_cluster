@@ -1,16 +1,17 @@
 defmodule RedisCluster.ShardDiscovery do
   use GenServer
 
+  require Logger
+
+  alias RedisCluster.Cluster.NodeInfo
+  alias RedisCluster.Configuration
   alias RedisCluster.HashSlots
 
   def start_link(config) do
-    GenServer.start_link(__MODULE__, config, name: name(config))
+    GenServer.start_link(__MODULE__, config, name: config.shard_discovery)
   end
 
-  def name(config) do
-    Module.concat(config.name, "ShardDiscovery__")
-  end
-
+  @impl GenServer
   def init(config) do
     HashSlots.create_table(config.name)
     {:ok, config, {:continue, :discover_shards}}
@@ -23,20 +24,17 @@ defmodule RedisCluster.ShardDiscovery do
   end
 
   @impl GenServer
-  def handle_call(:discover_shards, from, config) do
+  def handle_call(:discover_shards, _from, config) do
     discover_shards(config)
     {:reply, :ok, config}
   end
 
+  @spec rediscover_shards(Configuration.t()) :: :ok
   def rediscover_shards(config) do
-    GenServer.call(name(config), :discover_shards)
+    GenServer.call(config.shard_discovery, :discover_shards)
   end
 
   ## Helpers
-
-  # TODO: Make the helpers private
-
-  require Logger
 
   defp discover_shards(config) do
     Logger.debug("Discovering shards for #{config.name}")
@@ -55,7 +53,8 @@ defmodule RedisCluster.ShardDiscovery do
     end)
   end
 
-  def cluster_info(config) do
+  @spec cluster_info(Configuration.t()) :: [NodeInfo.t()] | no_return()
+  defp cluster_info(config) do
     {:ok, conn} = Redix.start_link(host: config.host, port: config.port)
 
     info = fetch_cluster_info(conn)
@@ -86,7 +85,6 @@ defmodule RedisCluster.ShardDiscovery do
 
   defp create_pool(config, info) do
     for node_info <- info do
-      Logger.debug("slots #{inspect(node_info.slots)}")
       RedisCluster.Pool.start_pool(config, node_info)
     end
   end

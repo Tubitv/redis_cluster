@@ -6,7 +6,7 @@ defmodule RedisCluster.Cluster do
   use Supervisor
 
   def start_link(config = %Configuration{}) do
-    Supervisor.start_link(__MODULE__, config, name: name(config))
+    Supervisor.start_link(__MODULE__, config, name: config.cluster)
   end
 
   def init(config) do
@@ -21,16 +21,11 @@ defmodule RedisCluster.Cluster do
     Supervisor.init(children, strategy: :one_for_all)
   end
 
-  def name(config) do
-    Module.concat(config.name, "Cluster__")
-  end
-
   def get(config, key, opts \\ []) do
     role = Keyword.get(opts, :role, :replica)
     slot = Key.hash_slot(key, opts)
-    slot_id = HashSlots.lookup(config.name, slot)
 
-    with_retry(config, role, slot_id, fn conn ->
+    with_retry(config, role, slot, fn conn ->
       Redix.command(conn, ["GET", key])
     end)
   end
@@ -38,9 +33,8 @@ defmodule RedisCluster.Cluster do
   def set(config, key, value, opts \\ []) do
     role = :master
     slot = Key.hash_slot(key, opts)
-    slot_id = HashSlots.lookup(config.name, slot)
 
-    with_retry(config, role, slot_id, fn conn ->
+    with_retry(config, role, slot, fn conn ->
       Redix.command(conn, ["SET", key, value])
     end)
   end
@@ -49,9 +43,8 @@ defmodule RedisCluster.Cluster do
     role = Keyword.get(opts, :role, :replica)
     key = Keyword.fetch!(opts, :key)
     slot = Key.hash_slot(key, opts)
-    slot_id = HashSlots.lookup(config.name, slot)
 
-    with_retry(config, role, slot_id, fn conn ->
+    with_retry(config, role, slot, fn conn ->
       Redix.command(conn, command)
     end)
   end
@@ -60,15 +53,15 @@ defmodule RedisCluster.Cluster do
     role = Keyword.get(opts, :role, :replica)
     key = Keyword.fetch!(opts, :key)
     slot = Key.hash_slot(key, opts)
-    slot_id = HashSlots.lookup(config.name, slot)
 
-    with_retry(config, role, slot_id, fn conn ->
+    with_retry(config, role, slot, fn conn ->
       Redix.pipeline(conn, commands)
     end)
   end
 
-  defp with_retry(config, role, slot_id, fun) do
-    conn = RedisCluster.Pool.get_conn(config, role, slot_id)
+  defp with_retry(config, role, slot, fun) do
+    {host, port} = lookup(config, slot, role)
+    conn = RedisCluster.Pool.get_conn(config, host, port)
 
     case fun.(conn) do
       {:ok, result} ->
@@ -78,12 +71,32 @@ defmodule RedisCluster.Cluster do
       # Try rediscovering the cluster.
       {:error, %Redix.Error{message: "MOVED" <> _}} ->
         reshard(config)
-        conn = RedisCluster.Pool.get_conn(config, role, slot_id)
+        {host, port} = lookup(config, slot, role)
+        conn = RedisCluster.Pool.get_conn(config, host, port)
         fun.(conn)
 
       error = {:error, _} ->
         error
     end
+  end
+
+  defp lookup(config, slots, role) do
+    config.name
+    |> HashSlots.lookup_conn_info(slots, role)
+    |> pick_consistent()
+  end
+
+  defp pick_consistent([info]) do
+    info
+  end
+
+  defp pick_consistent(list) do
+    # We could have multiple replicas or a mix of master and replicas.
+    # Pick the same node for a given process.
+    count = length(list)
+    index = :erlang.phash2(self(), count)
+
+    Enum.at(list, index)
   end
 
   defp reshard(config) do

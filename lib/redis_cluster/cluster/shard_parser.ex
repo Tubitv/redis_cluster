@@ -11,20 +11,17 @@ defmodule RedisCluster.Cluster.ShardParser do
     %{slots: slots, nodes: nodes} = list_to_map(data)
 
     for n <- nodes do
-      map = list_to_map(n)
+      %{id: id, ip: ip, port: port, role: role} = list_to_map(n)
+      role = atomify(role)
 
       slots =
         slots
         |> Enum.chunk_every(2)
-        |> Enum.map(&RedisCluster.HashSlots.slot_id/1)
+        |> Enum.map(fn [start, stop] ->
+          RedisCluster.HashSlots.slot_id(start, stop, role, ip, port)
+        end)
 
-      %RedisCluster.Cluster.NodeInfo{
-        id: map.id,
-        slots: slots,
-        host: map.ip,
-        port: map.port,
-        role: atomify(map.role)
-      }
+      %RedisCluster.Cluster.NodeInfo{id: id, slots: slots, host: ip, port: port, role: role}
     end
   end
 

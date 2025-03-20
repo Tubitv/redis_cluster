@@ -69,6 +69,9 @@ config = %RedisCluster.Configuration{
   port: 7000,
   name: Test.Redis,
   registry: Test.Redis.Registry__,
+  pool: Test.Redis.Pool__,
+  cluster: Test.Redis.Cluster__,
+  shard_discovery: Test.Redis.ShardDiscovery__,
   pool_size: 3
 }
 ```
@@ -86,7 +89,19 @@ Registry.count(config.registry)
 ```
 
 ```elixir
-RedisCluster.Cluster.set(config, "hello", "world")
+hash_slot = RedisCluster.Key.hash_slot("hello")
+```
+
+```elixir
+:ets.tab2list(config.name)
+```
+
+```elixir
+RedisCluster.HashSlots.lookup(config.name, hash_slot, :replica)
+```
+
+```elixir
+RedisCluster.Cluster.set(config, "hello", "world!")
 ```
 
 ```elixir
@@ -110,11 +125,11 @@ RedisCluster.Key.hash_slot("hello4")
 ```
 
 ```elixir
-slot_id = RedisCluster.HashSlots.lookup(config.name, 15864)
+slot_id = RedisCluster.HashSlots.lookup(config.name, 15864, :any)
 ```
 
 ```elixir
-conn = RedisCluster.Pool.get_conn(config, :replica, slot_id)
+conn = RedisCluster.Pool.get_conn(config, "127.0.0.1", 7000)
 ```
 
 ```elixir
