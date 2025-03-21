@@ -135,6 +135,9 @@ defmodule RedisCluster.Cluster do
   This function cannot guarantee which value is set when a key is included 
   multiple times in one call.
 
+  Commands are sent sequentially for simplicity. 
+  This means the function will be slower than sending commands in parallel.
+
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
     * `:expire_seconds` - The number of seconds until the key expires.
