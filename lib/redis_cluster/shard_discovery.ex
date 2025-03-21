@@ -13,7 +13,7 @@ defmodule RedisCluster.ShardDiscovery do
 
   @impl GenServer
   def init(config) do
-    HashSlots.create_table(config.name)
+    _ = HashSlots.create_table(config)
     {:ok, config, {:continue, :discover_shards}}
   end
 
@@ -39,7 +39,7 @@ defmodule RedisCluster.ShardDiscovery do
   defp discover_shards(config) do
     Logger.debug("Discovering shards for #{config.name}")
 
-    HashSlots.with_lock(config.name, fn ->
+    HashSlots.with_lock(config, fn ->
       info = cluster_info(config)
 
       Logger.debug("Found cluster info #{inspect(info)}")
@@ -49,7 +49,7 @@ defmodule RedisCluster.ShardDiscovery do
 
       slots = Enum.flat_map(info, & &1.slots)
 
-      HashSlots.add_slots(config.name, slots)
+      HashSlots.add_slots(config, slots)
     end)
   end
 
@@ -87,6 +87,8 @@ defmodule RedisCluster.ShardDiscovery do
     for node_info <- info do
       RedisCluster.Pool.start_pool(config, node_info)
     end
+
+    :ok
   end
 
   defp cluster_slots(conn) do

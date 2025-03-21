@@ -5,6 +5,11 @@ defmodule RedisCluster.Cluster do
 
   use Supervisor
 
+  @type key() :: binary() | atom() | number()
+  @type value() :: binary() | atom() | number()
+  @type command() :: [binary()]
+  @type pipeline() :: [command()]
+
   def start_link(config = %Configuration{}) do
     Supervisor.start_link(__MODULE__, config, name: config.cluster)
   end
@@ -21,7 +26,9 @@ defmodule RedisCluster.Cluster do
     Supervisor.init(children, strategy: :one_for_all)
   end
 
+  @spec get(Configuration.t(), key(), Keyword.t()) :: binary()
   def get(config, key, opts \\ []) do
+    key = to_string(key)
     role = Keyword.get(opts, :role, :replica)
     slot = Key.hash_slot(key, opts)
 
@@ -30,7 +37,9 @@ defmodule RedisCluster.Cluster do
     end)
   end
 
+  @spec set(Configuration.t(), key(), value(), Keyword.t()) :: binary()
   def set(config, key, value, opts \\ []) do
+    key = to_string(key)
     role = :master
     slot = Key.hash_slot(key, opts)
 
@@ -39,9 +48,10 @@ defmodule RedisCluster.Cluster do
     end)
   end
 
+  @spec command(Configuration.t(), command(), Keyword.t()) :: term()
   def command(config, command, opts \\ []) do
     role = Keyword.get(opts, :role, :replica)
-    key = Keyword.fetch!(opts, :key)
+    key = opts |> Keyword.fetch!(:key) |> to_string()
     slot = Key.hash_slot(key, opts)
 
     with_retry(config, role, slot, fn conn ->
@@ -49,6 +59,7 @@ defmodule RedisCluster.Cluster do
     end)
   end
 
+  @spec pipeline(Configuration.t(), pipeline(), Keyword.t()) :: [term()]
   def pipeline(config, commands, opts \\ []) do
     role = Keyword.get(opts, :role, :replica)
     key = Keyword.fetch!(opts, :key)
@@ -58,6 +69,8 @@ defmodule RedisCluster.Cluster do
       Redix.pipeline(conn, commands)
     end)
   end
+
+  ## Helpers
 
   defp with_retry(config, role, slot, fun) do
     {host, port} = lookup(config, slot, role)
@@ -81,7 +94,7 @@ defmodule RedisCluster.Cluster do
   end
 
   defp lookup(config, slots, role) do
-    config.name
+    config
     |> HashSlots.lookup_conn_info(slots, role)
     |> Enum.sort()
     |> pick_consistent()

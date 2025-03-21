@@ -6,6 +6,7 @@ defmodule RedisCluster.Pool do
   use DynamicSupervisor
 
   alias RedisCluster.Cluster.NodeInfo
+  alias RedisCluster.Configuration
 
   @doc false
   def start_link(config) do
@@ -17,15 +18,19 @@ defmodule RedisCluster.Pool do
     DynamicSupervisor.init(strategy: :one_for_one)
   end
 
+  @spec stop_pool(Configuration.t()) :: :ok
   def stop_pool(config) do
     name = config.pool
 
     for {_id, pid, _type, _modules} when is_pid(pid) <-
           DynamicSupervisor.which_children(name) do
-      DynamicSupervisor.terminate_child(name, pid)
+      _ = DynamicSupervisor.terminate_child(name, pid)
     end
+
+    :ok
   end
 
+  @spec start_pool(Configuration.t(), NodeInfo.t()) :: :ok
   def start_pool(config, %NodeInfo{host: host, port: port, role: role}) do
     supervisor_name = config.pool
 
@@ -37,8 +42,10 @@ defmodule RedisCluster.Pool do
 
       spec = Supervisor.child_spec({RedisCluster.Connection, args}, id: {Redix, name})
 
-      DynamicSupervisor.start_child(supervisor_name, spec)
+      _ = DynamicSupervisor.start_child(supervisor_name, spec)
     end
+
+    :ok
   end
 
   @spec get_conn(

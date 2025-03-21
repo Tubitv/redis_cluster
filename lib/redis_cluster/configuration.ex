@@ -18,6 +18,7 @@ defmodule RedisCluster.Configuration do
           pool_size: non_neg_integer()
         }
 
+  @spec from_app_env(Keyword.t(), atom()) :: t()
   def from_app_env(opts, module) do
     otp_app = Keyword.fetch!(opts, :otp_app)
     name = Keyword.fetch!(opts, :name) || module

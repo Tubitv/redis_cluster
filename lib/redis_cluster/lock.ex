@@ -7,7 +7,7 @@ defmodule RedisCluster.Lock do
     unlock(name)
   end
 
-  @spec delete(name()) :: :ok
+  @spec delete(name()) :: boolean()
   def delete(name) when is_atom(name) do
     name
     |> key()
@@ -33,8 +33,6 @@ defmodule RedisCluster.Lock do
     name
     |> key()
     |> :persistent_term.put(:ok)
-
-    :ok
   end
 
   @spec with_lock(name(), (() -> term)) :: term

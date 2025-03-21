@@ -5,7 +5,7 @@ defmodule RedisCluster.Cluster.NodeInfo do
 
   @type t :: %__MODULE__{
           id: String.t(),
-          slots: [RedisCluster.HashSlots.t()],
+          slots: [RedisCluster.HashSlots.hash_slot()],
           host: String.t(),
           port: non_neg_integer(),
           role: :master | :replica

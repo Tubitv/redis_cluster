@@ -7,12 +7,14 @@ defmodule RedisCluster.Connection do
   """
 
   @doc false
+  @spec start_link({role :: :master | :replica, conn_opts :: Keyword.t()}) :: {:ok, pid()}
   def start_link({role, conn_opts}) do
     {:ok, pid} = Redix.start_link(conn_opts)
 
-    if role == :replica do
-      Redix.command!(pid, ["READONLY"])
-    end
+    _ =
+      if role == :replica do
+        Redix.command!(pid, ["READONLY"])
+      end
 
     {:ok, pid}
   end
