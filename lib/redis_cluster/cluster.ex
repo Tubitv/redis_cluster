@@ -243,7 +243,7 @@ defmodule RedisCluster.Cluster do
   [Redis `DEL` command](https://redis.io/docs/latest/commands/del/).
   See the `set_many/3` function for details why.
 
-  Deletes the listed keys and retrieves the number of keys that were deleted.
+  Deletes the listed keys and returns the number of keys that were deleted.
   Only unique `DEL` commands are sent.
   If there are duplicate keys, this number deleted will be less than total keys given.
 

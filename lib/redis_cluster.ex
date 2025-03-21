@@ -19,8 +19,24 @@ defmodule RedisCluster do
         RedisCluster.Cluster.get(@config, key, opts)
       end
 
+      def get_many(keys, opts \\ []) do
+        RedisCluster.Cluster.get_many(@config, keys, opts)
+      end
+
       def set(key, value, opts \\ []) do
         RedisCluster.Cluster.set(@config, key, value, opts)
+      end
+
+      def set_many(entries, opts \\ []) do
+        RedisCluster.Cluster.set_many(@config, entries, opts)
+      end
+
+      def delete(key, opts \\ []) do
+        RedisCluster.Cluster.delete(@config, key, opts)
+      end
+
+      def delete_many(keys, opts \\ []) do
+        RedisCluster.Cluster.delete_many(@config, keys, opts)
       end
 
       def command(command, opts \\ []) do
