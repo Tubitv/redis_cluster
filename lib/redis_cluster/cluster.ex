@@ -53,7 +53,7 @@ defmodule RedisCluster.Cluster do
   By default doesn't set an expiration time for the key. Only `:expire_seconds` or
   `:expire_milliseconds` can be set, not both.
 
-  Since this is a write command, it will always be sent to a master node.
+  Since this is a write command, it will always target master nodes.
 
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `false`).
@@ -64,7 +64,7 @@ defmodule RedisCluster.Cluster do
       - `:only_overwrite` - Only set the key if it already exists.
       - `:only_new` - Only set the key if it doesn't exist.
   """
-  @spec set(Configuration.t(), key(), value(), Keyword.t()) :: binary()
+  @spec set(Configuration.t(), key(), value(), Keyword.t()) :: :ok | {:error, any()}
   def set(config, key, value, opts \\ []) do
     key = to_string(key)
     role = :master
@@ -73,41 +73,31 @@ defmodule RedisCluster.Cluster do
     command =
       List.flatten([
         ["SET", key, value],
-        expire_options(opts),
-        set_option(opts)
+        expire_option(opts),
+        write_option(opts)
       ])
 
     with_retry(config, role, slot, fn conn ->
       Redix.command(conn, command)
     end)
+    |> case do
+      "OK" -> :ok
+      error -> error
+    end
   end
 
-  @spec del(Configuration.t(), [key()], Keyword.t()) :: integer()
-  def del(config, key_or_keys, opts \\ [])
+  @doc """
+  Calls the [Redis `DEL` command](https://redis.io/docs/latest/commands/del).
 
-  def del(config, [key], opts) do
-    del(config, key, opts)
-  end
+  Returns 1 if the key was deleted, 0 if the key was not found.
 
-  def del(config, keys, opts) when is_list(keys) do
-    opts = Keyword.merge([compute_hash_tag: true], opts)
+  Since this is a write command, it will always target master nodes.
 
-    keys
-    |> Enum.group_by(&Key.hash_slot(to_string(&1), opts), &to_string/1)
-    |> Enum.reduce(0, fn {slot, keys}, acc ->
-      config
-      |> with_retry(:master, slot, fn conn ->
-        Redix.command(conn, ["DEL", keys])
-      end)
-      |> case do
-        n when is_integer(n) -> acc + n
-        _error -> acc
-      end
-    end)
-  end
-
-  @spec del(Configuration.t(), key(), Keyword.t()) :: integer()
-  def del(config, key, opts) do
+  Options:
+    * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `false`).
+  """
+  @spec delete(Configuration.t(), key(), Keyword.t()) :: integer()
+  def delete(config, key, opts) do
     key = to_string(key)
     role = :master
     slot = Key.hash_slot(key, opts)
@@ -130,41 +120,70 @@ defmodule RedisCluster.Cluster do
   [hash tag](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/#hash-tags).
   Because of this, `:compute_hash_tag` is set to `true` by default.
 
-  This function is aware of the limitations of the `MSET` command.
-  It will group the keys by slot and send the commands to the correct nodes.
-  These requests are made sequentially, one per slot, for convenience.
-  This means it may be slower than calling several `SET` commands in parallel.
+  Rather than use `MSET` this command sends a `SET` command for each key-value pair.
+  Where possible, the `SET` commands are sent in a pipeline, saving one or more round trips.
 
-  Since this is a write command, it will always be sent to the master nodes.
+  Since `SET` is used, this function offers expiration and write options like `set/3`.
+
+  The downside to this approach is if the cluster reshards.
+  The function will attempt all the `SET` commands, even if some of them will fail.
+  Then it tries to rediscover the cluster if any of the commands failed.
+  Though you will need to try your command again to ensure all the keys are set.
+
+  Since this sends write commands, it will always be target master nodes.
 
   This function cannot guarantee which value is set when a key is included 
   multiple times in one call.
 
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
+    * `:expire_seconds` - The number of seconds until the key expires.
+    * `:expire_milliseconds` - The number of milliseconds until the key expires.
+    * `:set` - Controls when the key should be set. Possible values are:
+      - `:always` - Always set the key (default).
+      - `:only_overwrite` - Only set the key if it already exists.
+      - `:only_new` - Only set the key if it doesn't exist.
   """
   @spec set_many(Configuration.t(), [{key(), value()}], Keyword.t()) :: :ok | [{:error, any()}]
-  def mset(config, pairs, opts \\ []) do
-    opts = Keyword.merge([compute_hash_tag: true], opts)
+  def set_many(config, pairs, opts \\ [])
 
-    pairs_by_slot =
+  def set_many(_config, [], _opts) do
+    :ok
+  end
+
+  def set_many(config, [{k, v}], opts) do
+    opts = Keyword.merge([compute_hash_tag: true], opts)
+    set(config, k, v, opts)
+  end
+
+  def set_many(config, pairs, opts) do
+    opts = Keyword.merge([compute_hash_tag: true], opts)
+    role = :master
+
+    pairs_by_conn =
       pairs
       |> Map.new(fn {k, v} -> {to_string(k), v} end)
-      |> Enum.group_by(fn {k, _v} -> Key.hash_slot(k, opts) end)
-
-    for {slot, pairs} <- pairs_by_slot do
-      keys_and_values = Enum.reduce(pairs, [], fn {k, v}, acc -> [k, v | acc] end)
-
-      cmd = ["MSET" | keys_and_values]
-
-      with_retry(config, :master, slot, fn conn ->
-        Redix.command(conn, cmd)
+      |> Enum.group_by(fn {k, _v} ->
+        slot = Key.hash_slot(k, opts)
+        get_conn(config, slot, role)
       end)
+
+    for {conn, pairs} <- pairs_by_conn do
+      cmds =
+        Enum.map(pairs, fn {k, v} ->
+          List.flatten([
+            ["SET", k, v],
+            expire_option(opts),
+            write_option(opts)
+          ])
+        end)
+
+      Redix.pipeline(conn, cmds)
     end
-    |> Enum.reject(&(&1 == "OK"))
+    |> Enum.reject(&match?({:ok, _}, &1))
     |> case do
       [] -> :ok
-      errors -> errors
+      errors -> maybe_rediscover(config, errors)
     end
   end
 
@@ -182,7 +201,18 @@ defmodule RedisCluster.Cluster do
       - `:master` - Query the master node.
       - `:replica` - Query a replica node (default).
   """
-  def get_many(config, keys, opts \\ []) do
+  def get_many(config, keys, opts \\ [])
+
+  def get_many(_config, [], _opts) do
+    []
+  end
+
+  def get_many(config, [key], opts) do
+    opts = Keyword.merge([compute_hash_tag: true], opts)
+    get(config, key, opts)
+  end
+
+  def get_many(config, keys, opts) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
     role = Keyword.get(opts, :role, :replica)
 
@@ -208,6 +238,66 @@ defmodule RedisCluster.Cluster do
     end
   end
 
+  @doc """
+  **WARNING**: This command is not a one-to-one mapping to the 
+  [Redis `DEL` command](https://redis.io/docs/latest/commands/del/).
+  See the `set_many/3` function for details why.
+
+  Deletes the listed keys and retrieves the number of keys that were deleted.
+  Only unique `DEL` commands are sent.
+  If there are duplicate keys, this number deleted will be less than total keys given.
+
+  Since this is a write command, it will always target master nodes.
+
+  Options:
+    * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
+  """
+  @spec delete_many(Configuration.t(), [key()], Keyword.t()) :: integer()
+  def delete_many(config, keys, opts \\ [])
+
+  def delete_many(_config, [], _opts) do
+    0
+  end
+
+  def delete_many(config, [key], opts) do
+    delete(config, key, opts)
+  end
+
+  def delete_many(config, keys, opts) when is_list(keys) do
+    opts = Keyword.merge([compute_hash_tag: true], opts)
+    role = :master
+
+    keys_by_conn =
+      keys
+      |> MapSet.new(&to_string/1)
+      |> Enum.group_by(fn key ->
+        slot = Key.hash_slot(key, opts)
+        get_conn(config, slot, role)
+      end)
+
+    for {conn, keys} <- keys_by_conn do
+      cmds = Enum.map(keys, &["DEL", &1])
+
+      Redix.pipeline(conn, cmds)
+    end
+    |> Enum.reject(&match?({:ok, _}, &1))
+    |> case do
+      [] -> :ok
+      errors -> maybe_rediscover(config, errors)
+    end
+  end
+
+  @doc """
+  Sends the given command to Redis. 
+  This allows sending any command to Redis that isn't already implemented in this module.
+
+  Options:
+    * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
+    * `:key` - (**REQUIRED**) The key to use when determining the hash slot.
+    * `:role` - The role to use when querying the cluster. Possible values are:
+      - `:master` - Query the master node (master).
+      - `:replica` - Query a replica node.
+  """
   @spec command(Configuration.t(), command(), Keyword.t()) :: term()
   def command(config, command, opts \\ []) do
     role = Keyword.get(opts, :role, :master)
@@ -219,6 +309,18 @@ defmodule RedisCluster.Cluster do
     end)
   end
 
+  @doc """
+  Sends a sequence of commands to Redis. 
+  This allows sending any command to Redis that isn't already implemented in this module.
+  It sends the commands in one batch, reducing the number of round trips.
+
+  Options:
+    * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
+    * `:key` - (**REQUIRED**) The key to use when determining the hash slot.
+    * `:role` - The role to use when querying the cluster. Possible values are:
+      - `:master` - Query the master node (master).
+      - `:replica` - Query a replica node.
+  """
   @spec pipeline(Configuration.t(), pipeline(), Keyword.t()) :: [term()]
   def pipeline(config, commands, opts \\ []) do
     role = Keyword.get(opts, :role, :master)
@@ -232,7 +334,7 @@ defmodule RedisCluster.Cluster do
 
   ## Helpers
 
-  defp expire_options(opts) do
+  defp expire_option(opts) do
     expire_seconds = Keyword.get(opts, :expire_seconds, 0)
     expire_milliseconds = Keyword.get(opts, :expire_milliseconds, 0)
 
@@ -243,7 +345,7 @@ defmodule RedisCluster.Cluster do
     end
   end
 
-  defp set_option(opts) do
+  defp write_option(opts) do
     case Keyword.get(opts, :set, :always) do
       :always -> []
       :only_overwrite -> ["XX"]
@@ -252,8 +354,7 @@ defmodule RedisCluster.Cluster do
   end
 
   defp with_retry(config, role, slot, fun) do
-    {host, port} = lookup(config, slot, role)
-    conn = RedisCluster.Pool.get_conn(config, host, port)
+    conn = get_conn(config, slot, role)
 
     case fun.(conn) do
       {:ok, result} ->
@@ -262,14 +363,18 @@ defmodule RedisCluster.Cluster do
       # The key wasn't on the expected node.
       # Try rediscovering the cluster.
       {:error, %Redix.Error{message: "MOVED" <> _}} ->
-        reshard(config)
-        {host, port} = lookup(config, slot, role)
-        conn = RedisCluster.Pool.get_conn(config, host, port)
+        rediscover(config)
+        conn = get_conn(config, slot, role)
         fun.(conn)
 
       error = {:error, _} ->
         error
     end
+  end
+
+  defp get_conn(config, slot, role) do
+    {host, port} = lookup(config, slot, role)
+    RedisCluster.Pool.get_conn(config, host, port)
   end
 
   defp lookup(config, slot, role) do
@@ -292,7 +397,18 @@ defmodule RedisCluster.Cluster do
     Enum.at(list, index)
   end
 
-  defp reshard(config) do
+  defp maybe_rediscover(config, errors) do
+    if Enum.any?(errors, fn
+         {:error, %Redix.Error{message: "MOVED" <> _}} -> true
+         _ -> false
+       end) do
+      rediscover(config)
+    end
+
+    errors
+  end
+
+  defp rediscover(config) do
     RedisCluster.ShardDiscovery.rediscover_shards(config)
   end
 end
