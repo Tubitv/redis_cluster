@@ -1,7 +1,182 @@
 #!/usr/bin/env elixir
 
+defmodule Printer do
+  def print(color \\ IO.ANSI.default_color(), message) do
+    IO.puts([color, message, IO.ANSI.reset()])
+  end
+
+  def error(color \\ IO.ANSI.red(), message) do
+    IO.puts(:stderr, [color, message, IO.ANSI.reset()])
+  end
+end
+
+defmodule Shell do
+  def run([cmd | args], opts) do
+    if Keyword.get(opts, :dry_run, false) do
+      Printer.print(IO.ANSI.yellow(), "DRY RUN: #{cmd} #{Enum.join(args, " ")}")
+    else
+      System.cmd(cmd, args)
+    end
+  end
+end
+
+defmodule CLI do
+  def main(argv) do
+    argv
+    |> parse_subcommand()
+    |> run()
+  end
+
+  defp parse_subcommand(["start" | args]) do
+    {:start, parse_options(args)}
+  end
+
+  defp parse_subcommand(["stop" | args]) do
+    {ports, args} = parse_ports(args, [])
+    {:stop, ports, parse_options(args)}
+  end
+
+  defp parse_subcommand([help | _args]) when help in ["help", "-h", "--help"] do
+    print_help()
+    halt()
+  end
+
+  defp parse_subcommand(args) do
+    Printer.error("Unsupported command: #{inspect(args)}")
+    print_help()
+    halt(1)
+  end
+
+  defp parse_options(argv) do
+    argv
+    |> OptionParser.parse(
+      strict: [
+        replicas_per_master: :integer,
+        port: :integer,
+        help: :boolean,
+        dry_run: :boolean
+      ],
+      aliases: [
+        r: :replicas_per_master,
+        p: :port,
+        h: :help,
+        d: :dry_run
+      ]
+    )
+    |> process_options()
+    |> inject_defaults()
+  end
+
+  defp process_options({parsed, [], []}) do
+    parsed
+  end
+
+  defp process_options({_parsed, [], invalid}) do
+    Printer.error("Invalid options: #{inspect(invalid)}")
+    print_help()
+    halt(2)
+  end
+
+  defp process_options({_parsed, argv, _invalid}) do
+    Printer.error("Extra arguments: #{inspect(argv)}")
+    print_help()
+    halt(3)
+  end
+
+  defp inject_defaults(opts) do
+    Keyword.merge([port: 9000, replicas_per_master: 1, dry_run: false], opts)
+  end
+
+  defp run({:start, opts}) do
+    maybe_print_help(opts)
+
+    replicas_per_master = Keyword.get(opts, :replicas_per_master, 1)
+
+    if replicas_per_master not in [0, 1, 2, 3, 5] do
+      Printer.error("Unsupported replicas per master: #{replicas_per_master}")
+      print_help()
+      halt(4)
+    end
+
+    RedisCluster.start_cluster(replicas_per_master, ports(opts), opts)
+  end
+
+  defp run({:stop, [], opts}) do
+    run({:stop, ports(opts), opts})
+  end
+
+  defp run({:stop, ports, opts}) do
+    maybe_print_help(opts)
+    RedisCluster.stop_instances(ports, opts)
+  end
+
+  defp maybe_print_help(opts) do
+    if Keyword.get(opts, :help, false) do
+      print_help()
+      halt()
+    end
+  end
+
+  defp print_help() do
+    Printer.print("""
+    Usage:
+      start_redis_cluster.exs start [options]
+      start_redis_cluster.exs stop <port> <port> ... [options]
+
+    Options:
+      -r, --replicas-per-master <n>  Number of replicas per master (default: 1)
+      -p, --port <port>              First port to use. Will use the next 11 ports too. (default: 9000)
+      -d, --dry-run                  Print commands instead of running them
+      -h, --help                     Print this help message
+    """)
+  end
+
+  defp parse_ports([], result) do
+    {Enum.reverse(result), []}
+  end
+
+  defp parse_ports(opts = ["-" <> _ | _], result) do
+    {Enum.reverse(result), opts}
+  end
+
+  defp parse_ports([string | rest], result) do
+    parse_ports(rest, [String.to_integer(string) | result])
+  end
+
+  defp ports(opts) do
+    port = Keyword.fetch!(opts, :port)
+
+    port..(port + 11)
+  end
+
+  defp halt() do
+    exit(:normal)
+  end
+
+  defp halt(n) when is_integer(n) do
+    exit({:shutdown, n})
+  end
+end
+
 defmodule RedisCluster do
-  def create_redis_conf(port) do
+  def start_cluster(replicas_per_master, ports, opts) do
+    create_root_dir(ports, opts)
+    start_instances(ports, opts)
+    Printer.print("Waiting for Redis instances to start...")
+    Process.sleep(5000)
+    cluster(replicas_per_master, ports, opts)
+  end
+
+  def stop_instances(ports, opts) do
+    for port <- ports do
+      Printer.print("Stopping Redis on port #{port}")
+      Shell.run(["redis-cli", "-p", "#{port}", "shutdown"], opts)
+    end
+  end
+
+  ## Helpers
+
+  defp create_redis_conf(port) do
     """
     ###############################
     # Redis Cluster Configuration #
@@ -30,40 +205,28 @@ defmodule RedisCluster do
     """
   end
 
-  def create_root_dir() do
-    for port <- ports() do
-      File.mkdir_p("#{System.tmp_dir()}redis/#{port}")
+  defp create_root_dir(ports, opts) do
+    for port <- ports do
+      Shell.run(["mkdir", "-p", "#{System.tmp_dir()}redis/#{port}"], opts)
     end
   end
 
-  def ports() do
-    9000..9011
-  end
-
-  def start_cluster(replicas_per_master) do
-    RedisCluster.create_root_dir()
-    RedisCluster.start_instances()
-    IO.puts("Waiting for Redis instances to start...")
-    Process.sleep(5000)
-    RedisCluster.cluster(replicas_per_master)
-  end
-
-  def start_instances() do
-    for port <- ports() do
-      IO.puts("Starting Redis on port #{port}")
+  defp start_instances(ports, opts) do
+    for port <- ports do
+      Printer.print("Starting Redis on port #{port}")
       path = "#{System.tmp_dir()}redis-#{port}.conf"
       File.write!(path, create_redis_conf(port))
 
       Task.start(fn ->
-        run_command(["redis-server", path])
+        Shell.run(["redis-server", path], opts)
       end)
     end
   end
 
-  def cluster(replicas_per_master) do
-    nodes = Enum.map(ports(), fn port -> "127.0.0.1:#{port}" end)
+  defp cluster(replicas_per_master, ports, opts) do
+    nodes = Enum.map(ports, fn port -> "127.0.0.1:#{port}" end)
 
-    IO.puts("Creating Redis Cluster with nodes: #{inspect(nodes)}")
+    Printer.print("Creating Redis Cluster with nodes: #{inspect(nodes)}")
     replicas = to_string(replicas_per_master)
 
     command =
@@ -74,60 +237,8 @@ defmodule RedisCluster do
         "--cluster-yes"
       ] ++ nodes ++ ["--cluster-replicas", replicas]
 
-    run_command(command)
-  end
-
-  def stop_instances(ports) do
-    for port <- ports do
-      IO.puts("Stopping Redis on port #{port}")
-      run_command(["redis-cli", "-p", "#{port}", "shutdown"])
-    end
-  end
-
-  def print_help() do
-    IO.puts("""
-    Usage: 
-    start_redis_cluster.exs start
-    start_redis_cluster.exs start [0|1|2|3|5]
-    start_redis_cluster.exs stop
-    start_redis_cluster.exs stop <port> <port> ...
-    """)
-  end
-
-  def parse_ports(ports) do
-    Enum.map(ports, &String.to_integer/1)
-  end
-
-  def run_command([cmd | args], opts \\ []) do
-    if Keyword.get(opts, :dry_run, false) do
-      IO.puts("DRY RUN: #{cmd} #{Enum.join(args, " ")}")
-    else
-      System.cmd(cmd, args)
-    end
+    Shell.run(command, opts)
   end
 end
 
-case System.argv() do
-  ["start"] ->
-    RedisCluster.start_cluster("1")
-
-  ["start", replicas_per_master | _] when replicas_per_master in ~w[0 1 2 3 5] ->
-    RedisCluster.start_cluster(replicas_per_master)
-
-  ["start" | replicas_per_master] ->
-    IO.puts("Unsupported replicas per master: #{replicas_per_master}")
-    RedisCluster.print_help()
-    exit(1)
-
-  ["stop"] ->
-    RedisCluster.stop_instances(RedisCluster.ports())
-
-  ["stop" | ports] ->
-    ports
-    |> RedisCluster.parse_ports()
-    |> RedisCluster.stop_instances()
-
-  _ ->
-    RedisCluster.print_help()
-    exit(1)
-end
+CLI.main(System.argv())
