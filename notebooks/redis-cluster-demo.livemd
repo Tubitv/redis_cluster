@@ -1,5 +1,11 @@
 # Redis Cluster Demo
 
+```elixir
+Mix.install([
+  {:redis_cluster, path: Path.expand("../", __DIR__)}
+])
+```
+
 ## Section
 
 ```elixir
@@ -97,7 +103,7 @@ Registry.count(config.registry)
 ```
 
 ```elixir
-RedisCluster.HashSlots.all_slots(config.name)
+RedisCluster.HashSlots.all_slots(config)
 ```
 
 ```elixir
@@ -105,7 +111,7 @@ hash_slot = RedisCluster.Key.hash_slot("hello")
 ```
 
 ```elixir
-RedisCluster.HashSlots.lookup(config.name, hash_slot, :replica)
+RedisCluster.HashSlots.lookup(config, hash_slot, :replica)
 ```
 
 ```elixir
@@ -113,7 +119,8 @@ RedisCluster.Cluster.set(config, "hello", "world!")
 ```
 
 ```elixir
-RedisCluster.Cluster.get(config, "hello")
+RedisCluster.Cluster.set(config, 4, "four")
+RedisCluster.Cluster.get(config, 4)
 ```
 
 ```elixir
@@ -125,6 +132,17 @@ RedisCluster.Cluster.get(config, "hello4", role: :replica)
 ```
 
 ```elixir
+hash_slot = RedisCluster.Key.hash_slot("hello4")
+[{host, port} | _] = RedisCluster.HashSlots.lookup_conn_info(config, hash_slot, :replica)
+conn = RedisCluster.Pool.get_conn(config, host, port)
+Redix.command!(conn, ["GET", :hello4])
+```
+
+```elixir
+RedisCluster.Cluster.get(config, :hello4, role: :replica)
+```
+
+```elixir
 RedisCluster.Cluster.command(config, ~w[client info], key: "hello4", role: :master)
 ```
 
@@ -133,15 +151,54 @@ RedisCluster.Key.hash_slot("hello4")
 ```
 
 ```elixir
-slot_id = RedisCluster.HashSlots.lookup(config.name, 15864, :any)
+slot_id = RedisCluster.HashSlots.lookup(config, 15864, :any)
 ```
 
 ```elixir
-conn = RedisCluster.Pool.get_conn(config, "127.0.0.1", 7000)
+for slot <- 1..10 do
+  RedisCluster.HashSlots.lookup_conn_info(config, slot, :replica)
+end
 ```
+
+```elixir
+conn = RedisCluster.Pool.get_conn(config, "127.0.0.1", 9002)
+```
+
+```elixir
+RedisCluster.Cluster.set_many(config, [
+  {"1", "one"},
+  {"2", "two"},
+  {"3", "three"},
+  {"4", "four"},
+  {"5", "five"},
+  {"6", "six"},
+  {"7", "seven"},
+  {"8", "eight"},
+  {"9", "nine"},
+  {"10", "ten"},
+])
+```
+
+```elixir
+RedisCluster.Cluster.get_many(config, ~w[3 1 2 1 4 3 5 2 5 10 9 8 7])
+```
+
+```elixir
+RedisCluster.Cluster.delete_many(config, ~w[1 2 3])
+```
+
+<!-- livebook:{"reevaluate_automatically":true} -->
 
 ```elixir
 Redix.command!(conn, ~w[keys *])
+```
+
+```elixir
+Redix.command!(conn, ~w[del hello4])
+```
+
+```elixir
+Redix.pipeline!(conn, [["GET", "hello4"], ["GET", "4"]])
 ```
 
 ```elixir
