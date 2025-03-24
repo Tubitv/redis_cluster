@@ -83,9 +83,9 @@ end
 
 ```
 
-12:48:16.049 [debug] Discovering shards for Elixir.Test.Redis
+13:07:39.328 [debug] Discovering shards for Elixir.Test.Redis
 
-12:48:16.084 [debug] Found cluster info [%RedisCluster.Cluster.NodeInfo{id: "d095e64df4ded43b18f042a7440a9dba41c8b42b", slots: [{RedisCluster.HashSlots, 12288, 16383, :master, "127.0.0.1", 7003}], host: "127.0.0.1", port: 7003, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "4bf32d95ecd53c58ebef5c38efe9999985c839e1", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7005}], host: "127.0.0.1", port: 7005, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "3b47cdc61bfec8c936c8e6d74c810c2bebe42233", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7010}], host: "127.0.0.1", port: 7010, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "38fef26e93b4103bb75635c0b218ae30bfe89a22", slots: [{RedisCluster.HashSlots, 0, 4095, :master, "127.0.0.1", 7000}], host: "127.0.0.1", port: 7000, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "85af8cde410608f6c1f6f7eb82ed122566920d3d", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7009}], host: "127.0.0.1", port: 7009, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "d49f321d8968df71c1ad7a664c47c5707c70e3a6", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7004}], host: "127.0.0.1", port: 7004, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "ac11810cdd6c5e7dfb199874d47fcbe71c08290b", slots: [{RedisCluster.HashSlots, 8192, 12287, :master, "127.0.0.1", 7002}], host: "127.0.0.1", port: 7002, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "e0b88e8e9bdcc5c486b6716b4f4ce189146de1f3", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7008}], host: "127.0.0.1", port: 7008, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "9e0dbc990c2e77aaf74f162eaecbbddae0f9b9c6", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7007}], host: "127.0.0.1", port: 7007, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "c8b45c0ba9e294bc0c38ab6861be83ada9ac3348", slots: [{RedisCluster.HashSlots, 4096, 8191, :master, "127.0.0.1", 7001}], host: "127.0.0.1", port: 7001, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "ef2b143dc7a01cee937e26820e4633a49679a41e", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7006}], host: "127.0.0.1", port: 7006, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "abbb5610c1f913250faca97bcd985907eb86f20b", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7011}], host: "127.0.0.1", port: 7011, role: :replica}]
+13:07:39.361 [debug] Found cluster info [%RedisCluster.Cluster.NodeInfo{id: "21881382bcb056cbf6c17db98fc003029a3dd419", slots: [{RedisCluster.HashSlots, 8192, 12287, :master, "127.0.0.1", 7002}], host: "127.0.0.1", port: 7002, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "2503ef0ec97437cb17417ea7a50af8513965f19a", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7011}], host: "127.0.0.1", port: 7011, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "8aa1ee4f6950da75fd920f8c658f98350e6ec0a0", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7010}], host: "127.0.0.1", port: 7010, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "142452ee9826210ac0430e79e6957706433def35", slots: [{RedisCluster.HashSlots, 0, 4095, :master, "127.0.0.1", 7000}], host: "127.0.0.1", port: 7000, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "b6db8596b01aa66195112398843f438c67b329bf", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7004}], host: "127.0.0.1", port: 7004, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "db081ccfdbcaaada8d2ed5fd66a689ff8672cb7c", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7005}], host: "127.0.0.1", port: 7005, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "3b5452348381f0cee588a34fc340307f10b44642", slots: [{RedisCluster.HashSlots, 12288, 16383, :master, "127.0.0.1", 7003}], host: "127.0.0.1", port: 7003, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "e57264ddc24e379bbd714591496e6a565db2130c", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7007}], host: "127.0.0.1", port: 7007, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "ea93941b685ea2f7502f5277d122a58baad84447", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7008}], host: "127.0.0.1", port: 7008, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "841b819ac076602fecb1a0e24028b56df3a99646", slots: [{RedisCluster.HashSlots, 4096, 8191, :master, "127.0.0.1", 7001}], host: "127.0.0.1", port: 7001, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "59e4d90a08ae6c36a5c4157d82c6a35d2baf6e13", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7006}], host: "127.0.0.1", port: 7006, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "5245762dd2cd304ca421e7d3eec68b7077eb94bb", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7009}], host: "127.0.0.1", port: 7009, role: :replica}]
 
 ```
 
@@ -200,16 +200,16 @@ config
 [
   {RedisCluster.HashSlots, 0, 4095, :master, "127.0.0.1", 7000},
   {RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7004},
-  {RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7009},
+  {RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7005},
   {RedisCluster.HashSlots, 4096, 8191, :master, "127.0.0.1", 7001},
   {RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7006},
-  {RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7011},
+  {RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7009},
   {RedisCluster.HashSlots, 8192, 12287, :master, "127.0.0.1", 7002},
-  {RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7007},
-  {RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7008},
+  {RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7010},
+  {RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7011},
   {RedisCluster.HashSlots, 12288, 16383, :master, "127.0.0.1", 7003},
-  {RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7005},
-  {RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7010}
+  {RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7007},
+  {RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7008}
 ]
 ```
 
@@ -520,6 +520,115 @@ Redis supports other data types such as
 [bloom filters](https://redis.io/docs/latest/commands/?group=bf), and more.
 Check them out in the [docs](https://redis.io/docs/latest/).
 
+## Discovery
+
+So, how does the `RedisCluster` library know which node to send a command to?
+This is where the node discovery process comes in. 
+The `RedisCluster` library is configured with a URL to connect to a node. 
+Ideally this URL should be a "configuration endpoint" as AWS ElastiCache calls it.
+The configuration endpoint picks a random node to connect to. 
+This ensures one node isn't being hit every time the cluster needs to be discovered.
+
+The `RedisCluster` library sends a [`CLUSTER SHARDS` command](https://redis.io/docs/latest/commands/cluster-shards/)
+to the connected node. 
+Or for pre-v7 nodes, the [`CLUSTER SLOTS` command](https://redis.io/docs/latest/commands/cluster-slots/).
+
+```elixir
+RedisCluster.Cluster.command(config, ~w[CLUSTER SHARDS], key: "arbitrary")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[
+  [
+    "slots",
+    [8192, 12287],
+    "nodes",
+    [
+      ["id", "21881382bcb056cbf6c17db98fc003029a3dd419", "port", 7002, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "master", "replication-offset", 168, "health", "online"],
+      ["id", "2503ef0ec97437cb17417ea7a50af8513965f19a", "port", 7011, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 168, "health", "online"],
+      ["id", "8aa1ee4f6950da75fd920f8c658f98350e6ec0a0", "port", 7010, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 168, "health", "online"]
+    ]
+  ],
+  [
+    "slots",
+    [12288, 16383],
+    "nodes",
+    [
+      ["id", "3b5452348381f0cee588a34fc340307f10b44642", "port", 7003, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "master", "replication-offset", 420, "health", "online"],
+      ["id", "ea93941b685ea2f7502f5277d122a58baad84447", "port", 7008, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 420, "health", "online"],
+      ["id", "e57264ddc24e379bbd714591496e6a565db2130c", "port", 7007, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 420, "health", "online"]
+    ]
+  ],
+  [
+    "slots",
+    [4096, 8191],
+    "nodes",
+    [
+      ["id", "841b819ac076602fecb1a0e24028b56df3a99646", "port", 7001, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "master", "replication-offset", 137, "health", "online"],
+      ["id", "5245762dd2cd304ca421e7d3eec68b7077eb94bb", "port", 7009, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 137, "health", "online"],
+      ["id", "59e4d90a08ae6c36a5c4157d82c6a35d2baf6e13", "port", 7006, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 137, "health", "online"]
+    ]
+  ],
+  [
+    "slots",
+    [0, 4095],
+    "nodes",
+    [
+      ["id", "142452ee9826210ac0430e79e6957706433def35", "port", 7000, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "master", "replication-offset", 171, "health", "online"],
+      ["id", "b6db8596b01aa66195112398843f438c67b329bf", "port", 7004, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 171, "health", "online"],
+      ["id", "db081ccfdbcaaada8d2ed5fd66a689ff8672cb7c", "port", 7005, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 171, "health", "online"]
+    ]
+  ]
+]
+```
+
+That's quite a bit of data to sift through. 
+You can see it in a nicer form with `RedisCluster.HashSlots.all_slots/1`.
+
+```elixir
+config
+|> RedisCluster.HashSlots.all_slots()
+|> Enum.sort()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[
+  {RedisCluster.HashSlots, 0, 4095, :master, "127.0.0.1", 7000},
+  {RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7004},
+  {RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7005},
+  {RedisCluster.HashSlots, 4096, 8191, :master, "127.0.0.1", 7001},
+  {RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7006},
+  {RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7009},
+  {RedisCluster.HashSlots, 8192, 12287, :master, "127.0.0.1", 7002},
+  {RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7010},
+  {RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7011},
+  {RedisCluster.HashSlots, 12288, 16383, :master, "127.0.0.1", 7003},
+  {RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7007},
+  {RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7008}
+]
+```
+
+If the `RedisCluster.Cluster` module sends a command and sees a `MOVED` error, ex. `MOVED 3720 127.0.0.1:7000`, then it assumes the cluster topology changed.
+It then tries to rediscover the cluster.
+For most commands it will retry the command once more.
+If it fails again, then there could be a problem with the cluster or the connection to it.
+
 ## Using RedisCluster
 
 The prior examples used `RedisCluster.Cluster` directly. 
@@ -593,21 +702,21 @@ end
 
 ```
 
-12:48:30.909 [debug] Discovering shards for Elixir.MyApp.Redis
+13:14:44.166 [debug] Discovering shards for Elixir.MyApp.Redis
 
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
-#PID<0.337.0>
+#PID<0.357.0>
 ```
 
 <!-- livebook:{"output":true} -->
 
 ```
 
-12:48:30.910 [debug] Found cluster info [%RedisCluster.Cluster.NodeInfo{id: "d095e64df4ded43b18f042a7440a9dba41c8b42b", slots: [{RedisCluster.HashSlots, 12288, 16383, :master, "127.0.0.1", 7003}], host: "127.0.0.1", port: 7003, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "4bf32d95ecd53c58ebef5c38efe9999985c839e1", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7005}], host: "127.0.0.1", port: 7005, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "3b47cdc61bfec8c936c8e6d74c810c2bebe42233", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7010}], host: "127.0.0.1", port: 7010, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "38fef26e93b4103bb75635c0b218ae30bfe89a22", slots: [{RedisCluster.HashSlots, 0, 4095, :master, "127.0.0.1", 7000}], host: "127.0.0.1", port: 7000, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "85af8cde410608f6c1f6f7eb82ed122566920d3d", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7009}], host: "127.0.0.1", port: 7009, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "d49f321d8968df71c1ad7a664c47c5707c70e3a6", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7004}], host: "127.0.0.1", port: 7004, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "ac11810cdd6c5e7dfb199874d47fcbe71c08290b", slots: [{RedisCluster.HashSlots, 8192, 12287, :master, "127.0.0.1", 7002}], host: "127.0.0.1", port: 7002, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "e0b88e8e9bdcc5c486b6716b4f4ce189146de1f3", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7008}], host: "127.0.0.1", port: 7008, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "9e0dbc990c2e77aaf74f162eaecbbddae0f9b9c6", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7007}], host: "127.0.0.1", port: 7007, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "c8b45c0ba9e294bc0c38ab6861be83ada9ac3348", slots: [{RedisCluster.HashSlots, 4096, 8191, :master, "127.0.0.1", 7001}], host: "127.0.0.1", port: 7001, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "ef2b143dc7a01cee937e26820e4633a49679a41e", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7006}], host: "127.0.0.1", port: 7006, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "abbb5610c1f913250faca97bcd985907eb86f20b", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7011}], host: "127.0.0.1", port: 7011, role: :replica}]
+13:14:44.168 [debug] Found cluster info [%RedisCluster.Cluster.NodeInfo{id: "21881382bcb056cbf6c17db98fc003029a3dd419", slots: [{RedisCluster.HashSlots, 8192, 12287, :master, "127.0.0.1", 7002}], host: "127.0.0.1", port: 7002, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "2503ef0ec97437cb17417ea7a50af8513965f19a", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7011}], host: "127.0.0.1", port: 7011, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "8aa1ee4f6950da75fd920f8c658f98350e6ec0a0", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7010}], host: "127.0.0.1", port: 7010, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "142452ee9826210ac0430e79e6957706433def35", slots: [{RedisCluster.HashSlots, 0, 4095, :master, "127.0.0.1", 7000}], host: "127.0.0.1", port: 7000, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "b6db8596b01aa66195112398843f438c67b329bf", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7004}], host: "127.0.0.1", port: 7004, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "db081ccfdbcaaada8d2ed5fd66a689ff8672cb7c", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7005}], host: "127.0.0.1", port: 7005, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "3b5452348381f0cee588a34fc340307f10b44642", slots: [{RedisCluster.HashSlots, 12288, 16383, :master, "127.0.0.1", 7003}], host: "127.0.0.1", port: 7003, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "e57264ddc24e379bbd714591496e6a565db2130c", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7007}], host: "127.0.0.1", port: 7007, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "ea93941b685ea2f7502f5277d122a58baad84447", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7008}], host: "127.0.0.1", port: 7008, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "841b819ac076602fecb1a0e24028b56df3a99646", slots: [{RedisCluster.HashSlots, 4096, 8191, :master, "127.0.0.1", 7001}], host: "127.0.0.1", port: 7001, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "59e4d90a08ae6c36a5c4157d82c6a35d2baf6e13", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7006}], host: "127.0.0.1", port: 7006, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "5245762dd2cd304ca421e7d3eec68b7077eb94bb", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7009}], host: "127.0.0.1", port: 7009, role: :replica}]
 
 ```
 
@@ -631,7 +740,7 @@ MyApp.Redis.hkeys("myhash")
 <!-- livebook:{"output":true} -->
 
 ```
-["c", "b", "a"]
+["c", "a", "b"]
 ```
 
 ```elixir
@@ -730,9 +839,9 @@ MyApp.Redis.command(~w[SET fail fail], key: "fail", role: :replica)
 
 ```
 
-12:48:44.848 [debug] Discovering shards for Elixir.MyApp.Redis
+13:14:57.731 [debug] Discovering shards for Elixir.MyApp.Redis
 
-12:48:44.849 [debug] Found cluster info [%RedisCluster.Cluster.NodeInfo{id: "d095e64df4ded43b18f042a7440a9dba41c8b42b", slots: [{RedisCluster.HashSlots, 12288, 16383, :master, "127.0.0.1", 7003}], host: "127.0.0.1", port: 7003, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "4bf32d95ecd53c58ebef5c38efe9999985c839e1", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7005}], host: "127.0.0.1", port: 7005, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "3b47cdc61bfec8c936c8e6d74c810c2bebe42233", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7010}], host: "127.0.0.1", port: 7010, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "38fef26e93b4103bb75635c0b218ae30bfe89a22", slots: [{RedisCluster.HashSlots, 0, 4095, :master, "127.0.0.1", 7000}], host: "127.0.0.1", port: 7000, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "85af8cde410608f6c1f6f7eb82ed122566920d3d", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7009}], host: "127.0.0.1", port: 7009, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "d49f321d8968df71c1ad7a664c47c5707c70e3a6", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7004}], host: "127.0.0.1", port: 7004, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "ac11810cdd6c5e7dfb199874d47fcbe71c08290b", slots: [{RedisCluster.HashSlots, 8192, 12287, :master, "127.0.0.1", 7002}], host: "127.0.0.1", port: 7002, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "e0b88e8e9bdcc5c486b6716b4f4ce189146de1f3", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7008}], host: "127.0.0.1", port: 7008, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "9e0dbc990c2e77aaf74f162eaecbbddae0f9b9c6", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7007}], host: "127.0.0.1", port: 7007, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "c8b45c0ba9e294bc0c38ab6861be83ada9ac3348", slots: [{RedisCluster.HashSlots, 4096, 8191, :master, "127.0.0.1", 7001}], host: "127.0.0.1", port: 7001, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "ef2b143dc7a01cee937e26820e4633a49679a41e", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7006}], host: "127.0.0.1", port: 7006, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "abbb5610c1f913250faca97bcd985907eb86f20b", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7011}], host: "127.0.0.1", port: 7011, role: :replica}]
+13:14:57.732 [debug] Found cluster info [%RedisCluster.Cluster.NodeInfo{id: "21881382bcb056cbf6c17db98fc003029a3dd419", slots: [{RedisCluster.HashSlots, 8192, 12287, :master, "127.0.0.1", 7002}], host: "127.0.0.1", port: 7002, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "2503ef0ec97437cb17417ea7a50af8513965f19a", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7011}], host: "127.0.0.1", port: 7011, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "8aa1ee4f6950da75fd920f8c658f98350e6ec0a0", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7010}], host: "127.0.0.1", port: 7010, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "142452ee9826210ac0430e79e6957706433def35", slots: [{RedisCluster.HashSlots, 0, 4095, :master, "127.0.0.1", 7000}], host: "127.0.0.1", port: 7000, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "b6db8596b01aa66195112398843f438c67b329bf", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7004}], host: "127.0.0.1", port: 7004, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "db081ccfdbcaaada8d2ed5fd66a689ff8672cb7c", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7005}], host: "127.0.0.1", port: 7005, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "3b5452348381f0cee588a34fc340307f10b44642", slots: [{RedisCluster.HashSlots, 12288, 16383, :master, "127.0.0.1", 7003}], host: "127.0.0.1", port: 7003, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "e57264ddc24e379bbd714591496e6a565db2130c", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7007}], host: "127.0.0.1", port: 7007, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "ea93941b685ea2f7502f5277d122a58baad84447", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7008}], host: "127.0.0.1", port: 7008, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "841b819ac076602fecb1a0e24028b56df3a99646", slots: [{RedisCluster.HashSlots, 4096, 8191, :master, "127.0.0.1", 7001}], host: "127.0.0.1", port: 7001, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "59e4d90a08ae6c36a5c4157d82c6a35d2baf6e13", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7006}], host: "127.0.0.1", port: 7006, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "5245762dd2cd304ca421e7d3eec68b7077eb94bb", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7009}], host: "127.0.0.1", port: 7009, role: :replica}]
 
 ```
 
