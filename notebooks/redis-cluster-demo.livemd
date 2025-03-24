@@ -1,3 +1,5 @@
+<!-- livebook:{"persist_outputs":true} -->
+
 # Redis Cluster Demo
 
 ```elixir
@@ -25,6 +27,32 @@ exec = Path.expand("../scripts/redis_cluster.exs", __DIR__)
 IO.puts(output)
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+Starting Redis on port 7000
+Starting Redis on port 7001
+Starting Redis on port 7002
+Starting Redis on port 7003
+Starting Redis on port 7004
+Starting Redis on port 7005
+Starting Redis on port 7006
+Starting Redis on port 7007
+Starting Redis on port 7008
+Starting Redis on port 7009
+Starting Redis on port 7010
+Starting Redis on port 7011
+Waiting for Redis instances to start...
+Creating Redis Cluster with nodes: ["127.0.0.1:7000", "127.0.0.1:7001", "127.0.0.1:7002", "127.0.0.1:7003", "127.0.0.1:7004", "127.0.0.1:7005", "127.0.0.1:7006", "127.0.0.1:7007", "127.0.0.1:7008", "127.0.0.1:7009", "127.0.0.1:7010", "127.0.0.1:7011"]
+
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
 Next, we connect to the cluster.
 
 ```elixir
@@ -45,6 +73,22 @@ pid = case RedisCluster.Cluster.start_link(config) do
 end
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+#PID<0.248.0>
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+
+12:48:16.049 [debug] Discovering shards for Elixir.Test.Redis
+
+12:48:16.084 [debug] Found cluster info [%RedisCluster.Cluster.NodeInfo{id: "d095e64df4ded43b18f042a7440a9dba41c8b42b", slots: [{RedisCluster.HashSlots, 12288, 16383, :master, "127.0.0.1", 7003}], host: "127.0.0.1", port: 7003, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "4bf32d95ecd53c58ebef5c38efe9999985c839e1", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7005}], host: "127.0.0.1", port: 7005, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "3b47cdc61bfec8c936c8e6d74c810c2bebe42233", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7010}], host: "127.0.0.1", port: 7010, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "38fef26e93b4103bb75635c0b218ae30bfe89a22", slots: [{RedisCluster.HashSlots, 0, 4095, :master, "127.0.0.1", 7000}], host: "127.0.0.1", port: 7000, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "85af8cde410608f6c1f6f7eb82ed122566920d3d", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7009}], host: "127.0.0.1", port: 7009, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "d49f321d8968df71c1ad7a664c47c5707c70e3a6", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7004}], host: "127.0.0.1", port: 7004, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "ac11810cdd6c5e7dfb199874d47fcbe71c08290b", slots: [{RedisCluster.HashSlots, 8192, 12287, :master, "127.0.0.1", 7002}], host: "127.0.0.1", port: 7002, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "e0b88e8e9bdcc5c486b6716b4f4ce189146de1f3", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7008}], host: "127.0.0.1", port: 7008, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "9e0dbc990c2e77aaf74f162eaecbbddae0f9b9c6", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7007}], host: "127.0.0.1", port: 7007, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "c8b45c0ba9e294bc0c38ab6861be83ada9ac3348", slots: [{RedisCluster.HashSlots, 4096, 8191, :master, "127.0.0.1", 7001}], host: "127.0.0.1", port: 7001, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "ef2b143dc7a01cee937e26820e4633a49679a41e", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7006}], host: "127.0.0.1", port: 7006, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "abbb5610c1f913250faca97bcd985907eb86f20b", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7011}], host: "127.0.0.1", port: 7011, role: :replica}]
+
+```
+
 This starts a supervisor that watches connection pools, among other things. 
 Re-run the following cell if you don't see all the connections.
 It takes a moment to discover them all.
@@ -53,12 +97,120 @@ It takes a moment to discover them all.
 Kino.Process.render_sup_tree(pid, direction: :left_right)
 ```
 
+<!-- livebook:{"output":true} -->
+
+```mermaid
+graph LR;
+2(Test.Redis.Pool__):::supervisor ---> 23(#PID<0.311.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 35(#PID<0.259.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 15(#PID<0.313.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 9(#PID<0.305.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 37(#PID<0.319.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 6(#PID<0.265.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 36(#PID<0.323.0>):::worker
+17(#PID<0.287.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 31(#PID<0.263.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 7(#PID<0.261.0>):::worker
+20(#PID<0.307.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+24(#PID<0.271.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+22(#PID<0.317.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 3(#PID<0.315.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 18(#PID<0.289.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 22(#PID<0.317.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 5(#PID<0.281.0>):::worker
+28(#PID<0.275.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+32(#PID<0.309.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 38(#PID<0.283.0>):::worker
+26(#PID<0.257.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 29(#PID<0.267.0>):::worker
+35(#PID<0.259.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 26(#PID<0.257.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 20(#PID<0.307.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 17(#PID<0.287.0>):::worker
+13(#PID<0.255.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 14(#PID<0.325.0>):::worker
+36(#PID<0.323.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+21(#PID<0.277.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+4(#PID<0.299.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 28(#PID<0.275.0>):::worker
+27(#PID<0.301.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 24(#PID<0.271.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 13(#PID<0.255.0>):::worker
+23(#PID<0.311.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+11(#PID<0.285.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 11(#PID<0.285.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 27(#PID<0.301.0>):::worker
+14(#PID<0.325.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+15(#PID<0.313.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 10(#PID<0.303.0>):::worker
+12(#PID<0.273.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 38(#PID<0.283.0>):::worker
+31(#PID<0.263.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+19(#PID<0.269.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+0(Test.Redis.Cluster__):::root ---> 2(Test.Redis.Pool__):::supervisor
+39(Test.Redis.Registry__):::supervisor ---> 40(Test.Redis.Registry__.PIDPartition0):::worker
+5(#PID<0.281.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+9(#PID<0.305.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+33(#PID<0.297.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 25(#PID<0.279.0>):::worker
+29(#PID<0.267.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+25(#PID<0.279.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+0(Test.Redis.Cluster__):::root ---> 1(Test.Redis.ShardDiscovery__):::worker
+0(Test.Redis.Cluster__):::root ---> 39(Test.Redis.Registry__):::supervisor
+2(Test.Redis.Pool__):::supervisor ---> 12(#PID<0.273.0>):::worker
+16(#PID<0.321.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+34(#PID<0.291.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+7(#PID<0.261.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 4(#PID<0.299.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 34(#PID<0.291.0>):::worker
+6(#PID<0.265.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 30(#PID<0.293.0>):::worker
+3(#PID<0.315.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 19(#PID<0.269.0>):::worker
+30(#PID<0.293.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 21(#PID<0.277.0>):::worker
+8(#PID<0.295.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+10(#PID<0.303.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 37(#PID<0.319.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 33(#PID<0.297.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 16(#PID<0.321.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 8(#PID<0.295.0>):::worker
+18(#PID<0.289.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 32(#PID<0.309.0>):::worker
+classDef root fill:#c4b5fd, stroke:#374151, stroke-width:4px, line-height:1.5em;
+classDef supervisor fill:#c4b5fd, stroke:#374151, stroke-width:1px, line-height:1.5em;
+classDef worker fill:#66c2a5, stroke:#374151, stroke-width:1px, line-height:1.5em;
+classDef notstarted color:#777, fill:#d9d9d9, stroke:#777, stroke-width:1px, line-height:1.5em;
+classDef ets fill:#a5f3fc, stroke:#374151, stroke-width:1px;
+
+
+```
+
 Then, we confirm the Redis cluster topology.
 
 ```elixir
 config
 |> RedisCluster.HashSlots.all_slots()
 |> Enum.sort()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[
+  {RedisCluster.HashSlots, 0, 4095, :master, "127.0.0.1", 7000},
+  {RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7004},
+  {RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7009},
+  {RedisCluster.HashSlots, 4096, 8191, :master, "127.0.0.1", 7001},
+  {RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7006},
+  {RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7011},
+  {RedisCluster.HashSlots, 8192, 12287, :master, "127.0.0.1", 7002},
+  {RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7007},
+  {RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7008},
+  {RedisCluster.HashSlots, 12288, 16383, :master, "127.0.0.1", 7003},
+  {RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7005},
+  {RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7010}
+]
 ```
 
 ## Hash Slots
@@ -72,6 +224,17 @@ config
 |> RedisCluster.HashSlots.all_slots()
 |> Enum.filter(fn {_mod, _lo, _hi, role, _host, _port} -> role == :master end)
 |> Enum.sort()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[
+  {RedisCluster.HashSlots, 0, 4095, :master, "127.0.0.1", 7000},
+  {RedisCluster.HashSlots, 4096, 8191, :master, "127.0.0.1", 7001},
+  {RedisCluster.HashSlots, 8192, 12287, :master, "127.0.0.1", 7002},
+  {RedisCluster.HashSlots, 12288, 16383, :master, "127.0.0.1", 7003}
+]
 ```
 
 With a fresh cluster, we should have four ranges:
@@ -90,6 +253,22 @@ for key <- ~w[1 2 3 4 5] do
   slot = RedisCluster.Key.hash_slot(key)
   IO.puts("#{key} => #{slot}")
 end
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+1 => 9842
+2 => 5649
+3 => 1584
+4 => 14039
+5 => 9974
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[:ok, :ok, :ok, :ok, :ok]
 ```
 
 Even though these keys are sequential numbers, the hashes are (ideally) randomly distributed. 
@@ -117,10 +296,42 @@ for {k, v} <- pairs do
 end
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+{1, one} => 9842
+{2, two} => 5649
+{3, three} => 1584
+{4, four} => 14039
+{5, five} => 9974
+{6, six} => 5781
+{7, seven} => 1716
+{8, eight} => 14171
+{9, nine} => 10106
+{10, ten} => 247
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[:ok, :ok, :ok, :ok, :ok, :ok, :ok, :ok, :ok, :ok]
+```
+
 ```elixir
 config
 |> RedisCluster.Cluster.broadcast([~w[DBSIZE]], role: :master)
 |> Enum.sort()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[
+  {"127.0.0.1", 7000, {:ok, [4]}},
+  {"127.0.0.1", 7001, {:ok, [2]}},
+  {"127.0.0.1", 7002, {:ok, [3]}},
+  {"127.0.0.1", 7003, {:ok, ~c"\a"}}
+]
 ```
 
 As long as only the above 10 keys have been written to this cluster, there will be 2 nodes with 2 keys and 2 nodes with 3 keys. That's as even as it gets for such a small set of keys.
@@ -132,6 +343,12 @@ So that means we should be able to fetch them in one request with [MGET](https:/
 
 ```elixir
 RedisCluster.Cluster.command(config, ~w[MGET 1 5 9], key: "1")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+{:error, %Redix.Error{message: "CROSSSLOT Keys in request don't hash to the same slot"}}
 ```
 
 Wrong. We get the error `CROSSSLOT Keys in request don't hash to the same slot`. 
@@ -155,11 +372,23 @@ for key <- keys do
 end
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+[14020, 14020, 14020]
+```
+
 All three keys have the same hash slot: 14,020. 
 This is the same as if you calculated the hash slot of `user1234`.
 
 ```elixir
 RedisCluster.Key.hash_slot("user1234")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+14020
 ```
 
 Notice the extra `:compute_hash_tag` option.
@@ -180,12 +409,24 @@ for key <- keys do
 end
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+[14020, 14020, 14020]
+```
+
 You can also confirm this behavior by calling the `CLUSTER KEYSLOT <key>` command.
 
 ```elixir
 for key <- keys do
   RedisCluster.Cluster.command(config, ["CLUSTER", "KEYSLOT", key], key: key)
 end
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[14020, 14020, 14020]
 ```
 
 You'll notice the extra `:key` option. This helps the `RedisCluster` library know which node to call.
@@ -205,6 +446,12 @@ get_cmd = ~w[MGET {user1234}:contact_info {user1234}:orders {user1234}:search_hi
 RedisCluster.Cluster.command(config, get_cmd, key: "user1234", compute_hash_tag: true)
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+["[test@example.com]", "\"[]\"", "[\"redis\"]"]
+```
+
 You can use binary data as a key. 
 However, you need to watch out for the rare chance you have a `{` character (hex `0x7B`)) followed by a `}` character (hex `0x7C`). 
 Because of this, it's recommended to prepend `{}` to the start of your key.
@@ -215,9 +462,21 @@ binary_key = "{}" <> <<0xDE, 0xAD, 0xBE, 0xEF>>
 RedisCluster.Key.hash_slot(binary_key, compute_hash_tag: true)
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+16021
+```
+
 ```elixir
 cmd = ["CLUSTER", "KEYSLOT", binary_key]
 RedisCluster.Cluster.command(config, cmd, key: binary_key, compute_hash_tag: true)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+16021
 ```
 
 Instead of using hashtags to ensure related data is stored on the same node, you can use a Hash. The Redis folks must really love the word "hash". A Hash is also known as a hash table, map, or dictionary.
@@ -227,12 +486,30 @@ set_cmd =  ~w/HSET user1234 orders "[]" search_history ["redis"] contact_info [t
 RedisCluster.Cluster.command(config, set_cmd, key: "user1234")
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+0
+```
+
 ```elixir
 RedisCluster.Cluster.command(config, ~w[HKEYS user1234], key: "user1234")
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+["orders", "search_history", "contact_info"]
+```
+
 ```elixir
 RedisCluster.Cluster.command(config, ~w[HGET user1234 search_history], key: "user1234")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+"[\"redis\"]"
 ```
 
 Redis supports other data types such as 
@@ -252,6 +529,12 @@ This could be in `config.exs` but more likely you will use env vars in `runtime.
 
 ```elixir
 Application.put_all_env(myapp: [{MyApp.Redis, [host: "localhost", port: 7000, pool_size: 3]}])
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
 ```
 
 Then you create your own module that uses the `RedisCluster` module.
@@ -286,7 +569,13 @@ defmodule MyApp.Redis do
 end
 ```
 
-The `RedisCluster` module will automatically add common functions such as `get`, `set`, `command`, and `pipeline`. 
+<!-- livebook:{"output":true} -->
+
+```
+{:module, MyApp.Redis, <<70, 79, 82, 49, 0, 0, 24, ...>>, {:hdel, 2}}
+```
+
+The `RedisCluster` module will automatically add common functions such as `get/2`, `set/3`, `command/2`, and `pipeline/2`. 
 You can add your own convenience functions depending on which Redis commands your application needs.
 Notice the above module adds `hset/2`, `hkeys/1`, and `hget/2`.
 
@@ -300,6 +589,28 @@ case MyApp.Redis.start_link([]) do
 end
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+
+12:48:30.909 [debug] Discovering shards for Elixir.MyApp.Redis
+
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+#PID<0.337.0>
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+
+12:48:30.910 [debug] Found cluster info [%RedisCluster.Cluster.NodeInfo{id: "d095e64df4ded43b18f042a7440a9dba41c8b42b", slots: [{RedisCluster.HashSlots, 12288, 16383, :master, "127.0.0.1", 7003}], host: "127.0.0.1", port: 7003, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "4bf32d95ecd53c58ebef5c38efe9999985c839e1", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7005}], host: "127.0.0.1", port: 7005, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "3b47cdc61bfec8c936c8e6d74c810c2bebe42233", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7010}], host: "127.0.0.1", port: 7010, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "38fef26e93b4103bb75635c0b218ae30bfe89a22", slots: [{RedisCluster.HashSlots, 0, 4095, :master, "127.0.0.1", 7000}], host: "127.0.0.1", port: 7000, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "85af8cde410608f6c1f6f7eb82ed122566920d3d", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7009}], host: "127.0.0.1", port: 7009, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "d49f321d8968df71c1ad7a664c47c5707c70e3a6", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7004}], host: "127.0.0.1", port: 7004, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "ac11810cdd6c5e7dfb199874d47fcbe71c08290b", slots: [{RedisCluster.HashSlots, 8192, 12287, :master, "127.0.0.1", 7002}], host: "127.0.0.1", port: 7002, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "e0b88e8e9bdcc5c486b6716b4f4ce189146de1f3", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7008}], host: "127.0.0.1", port: 7008, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "9e0dbc990c2e77aaf74f162eaecbbddae0f9b9c6", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7007}], host: "127.0.0.1", port: 7007, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "c8b45c0ba9e294bc0c38ab6861be83ada9ac3348", slots: [{RedisCluster.HashSlots, 4096, 8191, :master, "127.0.0.1", 7001}], host: "127.0.0.1", port: 7001, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "ef2b143dc7a01cee937e26820e4633a49679a41e", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7006}], host: "127.0.0.1", port: 7006, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "abbb5610c1f913250faca97bcd985907eb86f20b", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7011}], host: "127.0.0.1", port: 7011, role: :replica}]
+
+```
+
 From here you can call it directly. 
 Notice how much nicer the Hash data type is to work with using the convenience functions we added.
 
@@ -307,24 +618,57 @@ Notice how much nicer the Hash data type is to work with using the convenience f
 MyApp.Redis.hset("myhash", %{a: "1", b: "2", c: "3"})
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+3
+```
+
 ```elixir
 MyApp.Redis.hkeys("myhash")
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+["c", "b", "a"]
+```
+
 ```elixir
 MyApp.Redis.hget("myhash", "a")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+"1"
 ```
 
 ```elixir
 MyApp.Redis.hdel("myhash", ~w[a b c])
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+3
+```
+
 ```elixir
 MyApp.Redis.hget("myhash", "a")
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+nil
+```
+
 The `RedisCluster.Cluster` module also has `get_many/2`, `set_many/2`, and `delete_many/2` functions.
-These are not one-to-one mappings with the `MGET`, `MSET`, and `DEL` commands.
+These are not one-to-one mappings with the 
+[`MGET`](https://redis.io/docs/latest/commands/mget/), 
+[`MSET`](https://redis.io/docs/latest/commands/mset/), and 
+[`DEL`](https://redis.io/docs/latest/commands/del/) commands.
 
 Instead `RedisCluster` tries to be smarter by grouping commands by nodes and sending them in a batch pipeline.
 These commands will fail if the cluster reshards while the commands are in flight.
@@ -335,14 +679,94 @@ This may not be as fast as sending the commands in parallel
 MyApp.Redis.set_many(one: 1, two: 2, three: 3, four: 4, five: 5, six: 6)
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
 ```elixir
 MyApp.Redis.get_many(~w[six five four three two one])
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+["6", "5", "4", "3", "2", "1"]
 ```
 
 ```elixir
 MyApp.Redis.delete_many(~w[six five four three two one])
 ```
 
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
 ```elixir
 MyApp.Redis.get_many(~w[six five four three two one])
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[nil, nil, nil, nil, nil, nil]
+```
+
+## Read Replicas
+
+Unlike other Elixir Redis libraries, the `RedisCluster` library gives you full access to replica nodes.
+This allows your Redis cluster to scale better.
+
+Write commands **must** go to a master node.
+
+```elixir
+MyApp.Redis.command(~w[SET fail fail], key: "fail", role: :replica)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+
+12:48:44.848 [debug] Discovering shards for Elixir.MyApp.Redis
+
+12:48:44.849 [debug] Found cluster info [%RedisCluster.Cluster.NodeInfo{id: "d095e64df4ded43b18f042a7440a9dba41c8b42b", slots: [{RedisCluster.HashSlots, 12288, 16383, :master, "127.0.0.1", 7003}], host: "127.0.0.1", port: 7003, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "4bf32d95ecd53c58ebef5c38efe9999985c839e1", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7005}], host: "127.0.0.1", port: 7005, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "3b47cdc61bfec8c936c8e6d74c810c2bebe42233", slots: [{RedisCluster.HashSlots, 12288, 16383, :replica, "127.0.0.1", 7010}], host: "127.0.0.1", port: 7010, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "38fef26e93b4103bb75635c0b218ae30bfe89a22", slots: [{RedisCluster.HashSlots, 0, 4095, :master, "127.0.0.1", 7000}], host: "127.0.0.1", port: 7000, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "85af8cde410608f6c1f6f7eb82ed122566920d3d", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7009}], host: "127.0.0.1", port: 7009, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "d49f321d8968df71c1ad7a664c47c5707c70e3a6", slots: [{RedisCluster.HashSlots, 0, 4095, :replica, "127.0.0.1", 7004}], host: "127.0.0.1", port: 7004, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "ac11810cdd6c5e7dfb199874d47fcbe71c08290b", slots: [{RedisCluster.HashSlots, 8192, 12287, :master, "127.0.0.1", 7002}], host: "127.0.0.1", port: 7002, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "e0b88e8e9bdcc5c486b6716b4f4ce189146de1f3", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7008}], host: "127.0.0.1", port: 7008, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "9e0dbc990c2e77aaf74f162eaecbbddae0f9b9c6", slots: [{RedisCluster.HashSlots, 8192, 12287, :replica, "127.0.0.1", 7007}], host: "127.0.0.1", port: 7007, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "c8b45c0ba9e294bc0c38ab6861be83ada9ac3348", slots: [{RedisCluster.HashSlots, 4096, 8191, :master, "127.0.0.1", 7001}], host: "127.0.0.1", port: 7001, role: :master}, %RedisCluster.Cluster.NodeInfo{id: "ef2b143dc7a01cee937e26820e4633a49679a41e", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7006}], host: "127.0.0.1", port: 7006, role: :replica}, %RedisCluster.Cluster.NodeInfo{id: "abbb5610c1f913250faca97bcd985907eb86f20b", slots: [{RedisCluster.HashSlots, 4096, 8191, :replica, "127.0.0.1", 7011}], host: "127.0.0.1", port: 7011, role: :replica}]
+
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+{:error, %Redix.Error{message: "MOVED 3720 127.0.0.1:7000"}}
+```
+
+Writing to a replica gives an error like `MOVED 3720 127.0.0.1:7000`.
+In this case the replica node is redirecting you to its respective master node.
+
+By default, the `get/2` function sends the `GET` command to a replica. 
+Though you can specify it to go to a master node if you don't want any chance of stale data.
+
+```elixir
+MyApp.Redis.set("key", "value")
+MyApp.Redis.get("key", role: :master)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+"value"
+```
+
+Or if you don't care which node it goes to, then you can specify `:any`.
+
+```elixir
+MyApp.Redis.get("key", role: :any)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+"value"
 ```
