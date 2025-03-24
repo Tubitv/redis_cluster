@@ -327,10 +327,10 @@ config
 
 ```
 [
-  {"127.0.0.1", 7000, {:ok, [4]}},
+  {"127.0.0.1", 7000, {:ok, [3]}},
   {"127.0.0.1", 7001, {:ok, [2]}},
   {"127.0.0.1", 7002, {:ok, [3]}},
-  {"127.0.0.1", 7003, {:ok, ~c"\a"}}
+  {"127.0.0.1", 7003, {:ok, [2]}}
 ]
 ```
 
@@ -489,7 +489,7 @@ RedisCluster.Cluster.command(config, set_cmd, key: "user1234")
 <!-- livebook:{"output":true} -->
 
 ```
-0
+3
 ```
 
 ```elixir
@@ -546,7 +546,7 @@ defmodule MyApp.Redis do
 
   def hset(key, pairs) do
     pairs = Enum.flat_map(pairs, fn {k, v} -> [k, v] end)
-    cmd = ["HSET", key] ++ pairs
+    cmd = ["HSET", key | pairs]
 
     RedisCluster.Cluster.command(@config, cmd, key: key)
   end
