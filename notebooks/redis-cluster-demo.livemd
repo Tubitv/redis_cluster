@@ -1,4 +1,4 @@
-<!-- livebook:{"persist_outputs":true} -->
+<!-- livebook:{"file_entries":[{"name":"hash-slots.png","type":"attachment"},{"name":"tree-diagram.png","type":"attachment"}],"persist_outputs":true} -->
 
 # Redis Cluster Demo
 
@@ -213,6 +213,8 @@ config
 ]
 ```
 
+![](files/tree-diagram.png)
+
 ## Hash Slots
 
 In clustered mode, the key is run through a CRC-16 X-Modem function modulo 16,384. This gives a range of 0-16,383. This keyspace is split up among all the master nodes.
@@ -236,6 +238,10 @@ config
   {RedisCluster.HashSlots, 12288, 16383, :master, "127.0.0.1", 7003}
 ]
 ```
+
+![](files/hash-slots.png)
+
+<!-- livebook:{"break_markdown":true} -->
 
 With a fresh cluster, we should have four ranges:
 
