@@ -415,11 +415,11 @@ end
 [14020, 14020, 14020]
 ```
 
-You can also confirm this behavior by calling the `CLUSTER KEYSLOT <key>` command.
+You can also confirm this behavior by calling the [`CLUSTER KEYSLOT <key>` command](https://redis.io/docs/latest/commands/cluster-keyslot/).
 
 ```elixir
 for key <- keys do
-  RedisCluster.Cluster.command(config, ["CLUSTER", "KEYSLOT", key], key: key)
+  RedisCluster.Cluster.command(config, ["CLUSTER", "KEYSLOT", key], key: "arbitrary")
 end
 ```
 
@@ -452,6 +452,8 @@ RedisCluster.Cluster.command(config, get_cmd, key: "user1234", compute_hash_tag:
 ["[test@example.com]", "\"[]\"", "[\"redis\"]"]
 ```
 
+### Binary Keys
+
 You can use binary data as a key. 
 However, you need to watch out for the rare chance you have a `{` character (hex `0x7B`)) followed by a `}` character (hex `0x7C`). 
 Because of this, it's recommended to prepend `{}` to the start of your key.
@@ -478,6 +480,8 @@ RedisCluster.Cluster.command(config, cmd, key: binary_key, compute_hash_tag: tru
 ```
 16021
 ```
+
+### Hash Data Type
 
 Instead of using hashtags to ensure related data is stored on the same node, you can use a Hash. The Redis folks must really love the word "hash". A Hash is also known as a hash table, map, or dictionary.
 
@@ -628,6 +632,33 @@ If the `RedisCluster.Cluster` module sends a command and sees a `MOVED` error, e
 It then tries to rediscover the cluster.
 For most commands it will retry the command once more.
 If it fails again, then there could be a problem with the cluster or the connection to it.
+
+Ideally a node will only have one range of slots. 
+However, adding and removing nodes can cause the ranges to become fragmented.
+The `RedisCluster` library is smart enough to detect this. 
+It creates connections based on the nodes, not the hash ranges.
+
+<!-- livebook:{"break_markdown":true} -->
+
+### Lookup
+
+Knowing which nodes own which slots, the `RedisCluster` library is ready to look up the appropriate node.
+This is the process:
+
+1. Hash the key, account for hashtag when appropriate.
+2. Look up the nodes that own this hash slot.
+3. Filter nodes by role, if needed.
+4. Pick a node, if more than one option available.
+5. Grab a connection from the node's connection pool.
+
+Note that when the `RedisCluster` library picks a node and connection it does so consistently per process.
+It does this with a simple hash of the pid, modulo the node or connection count.
+
+<!-- livebook:{"force_markdown":true} -->
+
+```elixir
+index = :erlang.phash2(self(), count)
+```
 
 ## Using RedisCluster
 
