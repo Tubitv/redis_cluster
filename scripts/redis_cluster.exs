@@ -54,7 +54,8 @@ defmodule CLI do
         replicas_per_master: :integer,
         port: :integer,
         help: :boolean,
-        dry_run: :boolean
+        dry_run: :boolean,
+        purge_files: :boolean
       ],
       aliases: [
         r: :replicas_per_master,
@@ -108,6 +109,10 @@ defmodule CLI do
   defp run({:stop, ports, opts}) do
     maybe_print_help(opts)
     RedisCluster.stop_instances(ports, opts)
+
+    if Keyword.get(opts, :purge_files, false) do
+      purge_files(ports, opts)
+    end
   end
 
   defp maybe_print_help(opts) do
@@ -147,6 +152,14 @@ defmodule CLI do
     port = Keyword.fetch!(opts, :port)
 
     port..(port + 11)
+  end
+
+  defp purge_files(ports, opts) do
+    for port <- ports do
+      Printer.print("Purging files for Redis on port #{port}")
+      Shell.run(["rm", "-rf", "#{System.tmp_dir()}redis/#{port}"], opts)
+      Shell.run(["rm", "-rf", "#{System.tmp_dir()}redis/#{port}.log"], opts)
+    end
   end
 
   defp halt() do
