@@ -335,6 +335,31 @@ defmodule RedisCluster.Cluster do
     end)
   end
 
+  @doc """
+  Sends the given pipeline to all nodes in the cluster.
+  May filter on a specific role if desired, defaults to all nodes.
+  Note that this sends a pipeline instead of a single command. 
+  You can issue as many commands as you like and get the raw results back.
+  This is useful for debugging with commands like `DBSIZE` or `INFO USED_MEMORY`.
+
+  Options:
+    * `:role` - The role to use when querying the cluster. Possible values are:
+      - `:any` - Query any node (default).
+      - `:master` - Query the master nodes.
+      - `:replica` - Query the replica nodes.
+  """
+  def broadcast(config, commands, opts \\ []) do
+    role_selector = Keyword.get(opts, :role, :any)
+
+    for {_mod, _lo, _hi, role, host, port} <- HashSlots.all_slots(config),
+        role_selector == :any or role == role_selector do
+      conn = RedisCluster.Pool.get_conn(config, host, port)
+      result = Redix.pipeline(conn, commands)
+
+      {host, port, result}
+    end
+  end
+
   ## Helpers
 
   defp expire_option(opts) do
