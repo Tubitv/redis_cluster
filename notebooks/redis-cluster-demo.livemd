@@ -17,7 +17,8 @@ Redis is an in-memory key-value store. In it's most basic form, it has a single 
 
 To demonstrate, let's first start up a cluster. 
 It will have 12 nodes running from ports 7000-7011. 
-There will be 4 masters with 2 replicas each.
+There will be 4 masters with 2 replicas each. 
+You must have `redis-cli` installed first (`brew install redis`).
 
 ```elixir
 exec = Path.expand("../scripts/redis_cluster.exs", __DIR__)
@@ -364,7 +365,9 @@ So, it seems that we can't use MGET, right?
 
 Wrong. There is a viable option. We can use hash tags.
 
-A hash tag specifies a subset of the key to use for calculating the hash slot. It looks like this:
+A hash tag specifies a subset of the key to use for calculating the hash slot. 
+Specifically, the first substring surrounded with braces (`{...}`).
+It looks like this:
 
 ```elixir
 keys = [
@@ -722,8 +725,19 @@ end
 ```
 
 The `RedisCluster` module will automatically add common functions such as `get/2`, `set/3`, `command/2`, and `pipeline/2`. 
+Redis has over 200 commands.
 You can add your own convenience functions depending on which Redis commands your application needs.
 Notice the above module adds `hset/2`, `hkeys/1`, and `hget/2`.
+
+```elixir
+RedisCluster.Cluster.command(config, ~w[COMMAND COUNT], key: "anything")
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+241
+```
 
 Don't forget to add your module to your supervision tree.
 For this Livebook we'll start it directly.
