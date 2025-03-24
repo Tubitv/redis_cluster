@@ -71,7 +71,7 @@ defmodule RedisCluster do
 
   defmacro __using__(macro_opts) do
     quote bind_quoted: [macro_opts: macro_opts] do
-      @config RedisCluster.Config.from_app_env(macro_opts, __MODULE__)
+      @config RedisCluster.Configuration.from_app_env(macro_opts, __MODULE__)
 
       def start_link(_) do
         RedisCluster.Cluster.start_link(@config)

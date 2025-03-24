@@ -21,7 +21,7 @@ defmodule RedisCluster.Configuration do
   @spec from_app_env(Keyword.t(), atom()) :: t()
   def from_app_env(opts, module) do
     otp_app = Keyword.fetch!(opts, :otp_app)
-    name = Keyword.fetch!(opts, :name) || module
+    name = Keyword.get(opts, :name) || module
     env = Application.get_env(otp_app, name)
 
     %__MODULE__{

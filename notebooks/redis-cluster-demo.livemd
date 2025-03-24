@@ -2,77 +2,35 @@
 
 ```elixir
 Mix.install([
-  {:redis_cluster, path: Path.expand("../", __DIR__)}
+  {:redis_cluster, path: Path.expand("../", __DIR__)},
+  {:kino_vega_lite, "~> 0.1.13"}
 ])
 ```
 
-## Section
+## Summary
+
+Redis is an in-memory key-value store. In it's most basic form, it has a single server that contains all the key-value pairs. It can optionally have up to 5 read replicas (at least for AWS ElastiCache). Expanding beyond this requires cluster mode, which introduces some new complexity.
+
+## Setup
+
+To demonstrate, let's first start up a cluster. 
+It will have 12 nodes running from ports 7000-7011. 
+There will be 4 masters with 2 replicas each.
 
 ```elixir
-{:ok, conn} = Redix.start_link(host: "localhost", port: 9000)
+exec = Path.expand("../scripts/redis_cluster.exs", __DIR__)
+
+{output, 0} = System.cmd(exec, ~w[start --port 7000 --replicas-per-master 2])
+
+IO.puts(output)
 ```
 
-```elixir
-shards = Redix.command!(conn, ~w[cluster shards])
-```
-
-```elixir
-parsed_shards = RedisCluster.Cluster.ShardParser.parse(shards)
-```
-
-```elixir
-slots = Redix.command!(conn, ~w[cluster slots])
-```
-
-```elixir
-parsed_slots = RedisCluster.Cluster.SlotParser.parse(slots)
-```
-
-```elixir
-Enum.sort(parsed_shards) == Enum.sort(parsed_slots)
-```
-
-```elixir
-defmodule Key do
-  def hashtag(key) do
-    with [_leader, rest] <- String.split(key, "{", parts: 2),
-         [hashtag, _trailer] when hashtag != "" <- String.split(rest, "}", parts: 2) do
-      hashtag
-    else
-      _ -> nil
-    end
-  end
-end
-```
-
-```elixir
-Key.hashtag("{}")
-```
-
-```elixir
-Key.hashtag("{1234}.test")
-```
-
-```elixir
-Key.hashtag("test.{12355}")
-```
-
-```elixir
-Key.hashtag("{}.{12345}")
-```
-
-```elixir
-Key.hashtag("{12345}.{67889}")
-```
-
-```elixir
-Key.hashtag("{12345}.{}")
-```
+Next, we connect to the cluster.
 
 ```elixir
 config = %RedisCluster.Configuration{
   host: "localhost",
-  port: 9000,
+  port: 7000,
   name: Test.Redis,
   registry: Test.Redis.Registry__,
   pool: Test.Redis.Pool__,
@@ -80,92 +38,66 @@ config = %RedisCluster.Configuration{
   shard_discovery: Test.Redis.ShardDiscovery__,
   pool_size: 3
 }
-```
 
-```elixir
-{:ok, pid} = RedisCluster.Cluster.start_link(config)
-```
-
-```elixir
-Kino.Process.render_sup_tree(pid)
-```
-
-```elixir
-RedisCluster.Cluster.command(config, ~w[cluster shards], key: "test")
-```
-
-```elixir
-RedisCluster.Cluster.command(config, ~w[cluster slots], key: "test")
-```
-
-```elixir
-Registry.count(config.registry)
-```
-
-```elixir
-RedisCluster.HashSlots.all_slots(config)
-```
-
-```elixir
-hash_slot = RedisCluster.Key.hash_slot("hello")
-```
-
-```elixir
-RedisCluster.HashSlots.lookup(config, hash_slot, :replica)
-```
-
-```elixir
-RedisCluster.Cluster.set(config, "hello", "world!")
-```
-
-```elixir
-RedisCluster.Cluster.set(config, 4, "four")
-RedisCluster.Cluster.get(config, 4)
-```
-
-```elixir
-RedisCluster.Cluster.set(config, "hello4", "fourth")
-```
-
-```elixir
-RedisCluster.Cluster.get(config, "hello4", role: :replica)
-```
-
-```elixir
-hash_slot = RedisCluster.Key.hash_slot("hello4")
-[{host, port} | _] = RedisCluster.HashSlots.lookup_conn_info(config, hash_slot, :replica)
-conn = RedisCluster.Pool.get_conn(config, host, port)
-Redix.command!(conn, ["GET", :hello4])
-```
-
-```elixir
-RedisCluster.Cluster.get(config, :hello4, role: :replica)
-```
-
-```elixir
-RedisCluster.Cluster.command(config, ~w[client info], key: "hello4", role: :master)
-```
-
-```elixir
-RedisCluster.Key.hash_slot("hello4")
-```
-
-```elixir
-slot_id = RedisCluster.HashSlots.lookup(config, 15864, :any)
-```
-
-```elixir
-for slot <- 1..10 do
-  RedisCluster.HashSlots.lookup_conn_info(config, slot, :replica)
+pid = case RedisCluster.Cluster.start_link(config) do
+  {:ok, pid} -> pid
+  {:error, {:already_started, pid}} -> pid
 end
 ```
 
-```elixir
-conn = RedisCluster.Pool.get_conn(config, "127.0.0.1", 9002)
-```
+This starts a supervisor that watches connection pools, among other things. 
+Re-run the following cell if you don't see all the connections.
+It takes a moment to discover them all.
 
 ```elixir
-RedisCluster.Cluster.set_many(config, [
+Kino.Process.render_sup_tree(pid, direction: :left_right)
+```
+
+Then, we confirm the Redis cluster topology.
+
+```elixir
+config
+|> RedisCluster.HashSlots.all_slots()
+|> Enum.sort()
+```
+
+## Hash Slots
+
+In clustered mode, the key is run through a CRC-16 X-Modem function modulo 16,384. This gives a range of 0-16,383. This keyspace is split up among all the master nodes.
+
+Let's query the cluster and see what this looks like.
+
+```elixir
+config
+|> RedisCluster.HashSlots.all_slots()
+|> Enum.filter(fn {_mod, _lo, _hi, role, _host, _port} -> role == :master end)
+|> Enum.sort()
+```
+
+With a fresh cluster, we should have four ranges:
+
+* 0-4095
+* 4096-8191
+* 8192-12,287
+* 12,288-16,383
+
+If a cluster adds and removes shards, these ranges can become fragmented. For simplicity in the examples, we'll stick with these nice ranges.
+
+Now, let's take some arbitrary keys and see what they hash to.
+
+```elixir
+for key <- ~w[1 2 3 4 5] do
+  slot = RedisCluster.Key.hash_slot(key)
+  IO.puts("#{key} => #{slot}")
+end
+```
+
+Even though these keys are sequential numbers, the hashes are (ideally) randomly distributed. 
+This ensures each of the nodes have roughly the same number of key-value pairs.
+Let's put some data in the cluster to confirm.
+
+```elixir
+pairs = [
   {"1", "one"},
   {"2", "two"},
   {"3", "three"},
@@ -175,33 +107,242 @@ RedisCluster.Cluster.set_many(config, [
   {"7", "seven"},
   {"8", "eight"},
   {"9", "nine"},
-  {"10", "ten"},
-])
+  {"10", "ten"}
+]
+
+for {k, v} <- pairs do
+  RedisCluster.Cluster.set(config, k, v)
+  slot = RedisCluster.Key.hash_slot(k)
+  IO.puts("{#{k}, #{v}} => #{slot}")
+end
 ```
 
 ```elixir
-RedisCluster.Cluster.get_many(config, ~w[3 1 2 1 4 3 5 2 5 10 9 8 7])
+config
+|> RedisCluster.Cluster.broadcast([~w[DBSIZE]], role: :master)
+|> Enum.sort()
+```
+
+As long as only the above 10 keys have been written to this cluster, there will be 2 nodes with 2 keys and 2 nodes with 3 keys. That's as even as it gets for such a small set of keys.
+
+## Hash Tags
+
+Next, let's look at a caveat with Redis clusters. Previously, we saw that keys 1, 5, and 9 are on the same node (range 8192-12,287).
+So that means we should be able to fetch them in one request with [MGET](https://redis.io/docs/latest/commands/mget/), right?
+
+```elixir
+RedisCluster.Cluster.command(config, ~w[MGET 1 5 9], key: "1")
+```
+
+Wrong. We get the error `CROSSSLOT Keys in request don't hash to the same slot`. 
+This means that the keys must hash to the exact value, even if they happen to live on the same node.
+With hashes randomly distributed, there's only 1:16,384 change that any two arbitrary keys have the same hash slot. 
+So, it seems that we can't use MGET, right?
+
+Wrong. There is a viable option. We can use hash tags.
+
+A hash tag specifies a subset of the key to use for calculating the hash slot. It looks like this:
+
+```elixir
+keys = [
+  "{user1234}:orders",
+  "{user1234}:search_history",
+  "{user1234}:contact_info",
+]
+
+for key <- keys do
+  RedisCluster.Key.hash_slot(key, compute_hash_tag: true)
+end
+```
+
+All three keys have the same hash slot: 14,020. 
+This is the same as if you calculated the hash slot of `user1234`.
+
+```elixir
+RedisCluster.Key.hash_slot("user1234")
+```
+
+Notice the extra `:compute_hash_tag` option.
+The `RedisCluster` library doesn't look for a hash tag unless you request it. 
+This avoids any unnecessary overhead if you don't use hash tags.
+
+Also, note that it doesn't matter where in the key the hash tag appears.
+
+```elixir
+keys = [
+  "orders:{user1234}",
+  "search_history:{user1234}",
+  "contact_info:{user1234}",
+]
+
+for key <- keys do
+  RedisCluster.Key.hash_slot(key, compute_hash_tag: true)
+end
+```
+
+You can also confirm this behavior by calling the `CLUSTER KEYSLOT <key>` command.
+
+```elixir
+for key <- keys do
+  RedisCluster.Cluster.command(config, ["CLUSTER", "KEYSLOT", key], key: key)
+end
+```
+
+You'll notice the extra `:key` option. This helps the `RedisCluster` library know which node to call.
+Though in this case it doesn't matter. 
+Any node receiving this command can respond appropriately. 
+The node isn't looking up the data, it's just computing the slot.
+
+<!-- livebook:{"break_markdown":true} -->
+
+Let's try `MGET` again.
+
+```elixir
+set_cmd =  ~w/MSET {user1234}:orders "[]" {user1234}:search_history ["redis"] {user1234}:contact_info [test@example.com]/
+RedisCluster.Cluster.command(config, set_cmd, key: "user1234", compute_hash_tag: true)
+
+get_cmd = ~w[MGET {user1234}:contact_info {user1234}:orders {user1234}:search_history]
+RedisCluster.Cluster.command(config, get_cmd, key: "user1234", compute_hash_tag: true)
+```
+
+You can use binary data as a key. 
+However, you need to watch out for the rare chance you have a `{` character (hex `0x7B`)) followed by a `}` character (hex `0x7C`). 
+Because of this, it's recommended to prepend `{}` to the start of your key.
+When an empty hash tag is found, the full key is always used.
+
+```elixir
+binary_key = "{}" <> <<0xDE, 0xAD, 0xBE, 0xEF>>
+RedisCluster.Key.hash_slot(binary_key, compute_hash_tag: true)
 ```
 
 ```elixir
-RedisCluster.Cluster.delete_many(config, ~w[1 2 3])
+cmd = ["CLUSTER", "KEYSLOT", binary_key]
+RedisCluster.Cluster.command(config, cmd, key: binary_key, compute_hash_tag: true)
 ```
 
-<!-- livebook:{"reevaluate_automatically":true} -->
+Instead of using hashtags to ensure related data is stored on the same node, you can use a Hash. The Redis folks must really love the word "hash". A Hash is also known as a hash table, map, or dictionary.
 
 ```elixir
-Redix.command!(conn, ~w[keys *])
-```
-
-```elixir
-Redix.command!(conn, ~w[del hello4])
-```
-
-```elixir
-Redix.pipeline!(conn, [["GET", "hello4"], ["GET", "4"]])
+set_cmd =  ~w/HSET user1234 orders "[]" search_history ["redis"] contact_info [test@example.com]/
+RedisCluster.Cluster.command(config, set_cmd, key: "user1234")
 ```
 
 ```elixir
-# Redix.command(conn, ~w[get hello2])
-Redix.command(conn, ~w[info]) |> elem(1) |> IO.puts
+RedisCluster.Cluster.command(config, ~w[HKEYS user1234], key: "user1234")
+```
+
+```elixir
+RedisCluster.Cluster.command(config, ~w[HGET user1234 search_history], key: "user1234")
+```
+
+Redis supports other data types such as 
+[lists](https://redis.io/docs/latest/commands/?group=list), 
+[sets](https://redis.io/docs/latest/commands/?group=set), 
+[sorted sets](https://redis.io/docs/latest/commands/?group=sorted-set), 
+[lua scripts](https://redis.io/docs/latest/commands/?group=scripting), 
+[bloom filters](https://redis.io/docs/latest/commands/?group=bf), and more.
+Check them out in the [docs](https://redis.io/docs/latest/).
+
+## Using RedisCluster
+
+The prior examples used `RedisCluster.Cluster` directly. 
+Though you will likely interact with it using a custom module. 
+Start with adding your config. 
+This could be in `config.exs` but more likely you will use env vars in `runtime.exs`.
+
+```elixir
+Application.put_all_env(myapp: [{MyApp.Redis, [host: "localhost", port: 7000, pool_size: 3]}])
+```
+
+Then you create your own module that uses the `RedisCluster` module.
+The `@config` attribute is available for convenience.
+
+```elixir
+defmodule MyApp.Redis do
+  use RedisCluster, otp_app: :myapp
+
+  def hset(key, pairs) do
+    pairs = Enum.flat_map(pairs, fn {k, v} -> [k, v] end)
+    cmd = ["HSET", key] ++ pairs
+
+    RedisCluster.Cluster.command(@config, cmd, key: key)
+  end
+
+  def hkeys(key) do
+    RedisCluster.Cluster.command(@config, ["HKEYS", key], key: key)
+  end
+
+  def hget(key, field) do
+    RedisCluster.Cluster.command(@config, ["HGET", key, field], key: key)
+  end
+
+  def hdel(_key, []) do
+    0
+  end
+
+  def hdel(key, fields) do
+    RedisCluster.Cluster.command(@config, ["HDEL", key | fields], key: key)
+  end
+end
+```
+
+The `RedisCluster` module will automatically add common functions such as `get`, `set`, `command`, and `pipeline`. 
+You can add your own convenience functions depending on which Redis commands your application needs.
+Notice the above module adds `hset/2`, `hkeys/1`, and `hget/2`.
+
+Don't forget to add your module to your supervision tree.
+For this Livebook we'll start it directly.
+
+```elixir
+case MyApp.Redis.start_link([]) do
+  {:ok, pid} -> pid
+  {:error, {:already_started, pid}} -> pid
+end
+```
+
+From here you can call it directly. 
+Notice how much nicer the Hash data type is to work with using the convenience functions we added.
+
+```elixir
+MyApp.Redis.hset("myhash", %{a: "1", b: "2", c: "3"})
+```
+
+```elixir
+MyApp.Redis.hkeys("myhash")
+```
+
+```elixir
+MyApp.Redis.hget("myhash", "a")
+```
+
+```elixir
+MyApp.Redis.hdel("myhash", ~w[a b c])
+```
+
+```elixir
+MyApp.Redis.hget("myhash", "a")
+```
+
+The `RedisCluster.Cluster` module also has `get_many/2`, `set_many/2`, and `delete_many/2` functions.
+These are not one-to-one mappings with the `MGET`, `MSET`, and `DEL` commands.
+
+Instead `RedisCluster` tries to be smarter by grouping commands by nodes and sending them in a batch pipeline.
+These commands will fail if the cluster reshards while the commands are in flight.
+The commands are also sent to each node sequentially for simplicity. 
+This may not be as fast as sending the commands in parallel
+
+```elixir
+MyApp.Redis.set_many(one: 1, two: 2, three: 3, four: 4, five: 5, six: 6)
+```
+
+```elixir
+MyApp.Redis.get_many(~w[six five four three two one])
+```
+
+```elixir
+MyApp.Redis.delete_many(~w[six five four three two one])
+```
+
+```elixir
+MyApp.Redis.get_many(~w[six five four three two one])
 ```
