@@ -22,7 +22,7 @@ defmodule RedisCluster.Configuration do
   def from_app_env(opts, module) do
     otp_app = Keyword.fetch!(opts, :otp_app)
     name = Keyword.get(opts, :name) || module
-    env = Application.get_env(otp_app, name)
+    env = env(otp_app, name, opts)
 
     %__MODULE__{
       host: Keyword.fetch!(env, :host),
@@ -34,6 +34,14 @@ defmodule RedisCluster.Configuration do
       shard_discovery: fetch_name(name, env, :shard_discovery, "ShardDiscovery__"),
       pool_size: Keyword.get(env, :pool_size, 10)
     }
+  end
+
+  defp env(:none, _name, opts) do
+    opts
+  end
+
+  defp env(otp_app, name, _opts) do
+    Application.get_env(otp_app, name)
   end
 
   defp fetch_name(name, env, key, suffix) do

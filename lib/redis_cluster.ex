@@ -63,7 +63,7 @@ defmodule RedisCluster do
 
   RedisCluster.Cluster.set(config, "answer", 42)
 
-  RedisCluster.Cluster.get(config, "key")
+  RedisCluster.Cluster.get(config, "answer")
   ```
 
   This can be useful for testing, Livebook demos, or dynamically connecting to Redis clusters.

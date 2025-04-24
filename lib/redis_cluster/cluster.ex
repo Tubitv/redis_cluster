@@ -97,7 +97,7 @@ defmodule RedisCluster.Cluster do
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `false`).
   """
   @spec delete(Configuration.t(), key(), Keyword.t()) :: integer()
-  def delete(config, key, opts) do
+  def delete(config, key, opts \\ []) do
     key = to_string(key)
     role = :master
     slot = Key.hash_slot(key, opts)

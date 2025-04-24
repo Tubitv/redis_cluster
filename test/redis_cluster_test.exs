@@ -1,8 +1,6 @@
 defmodule RedisClusterTest do
-  use ExUnit.Case
-  doctest RedisCluster
+  use ExUnit.Case, async: true
 
-  test "greets the world" do
-    assert RedisCluster.hello() == :world
-  end
+  doctest RedisCluster.Lock
+  doctest RedisCluster.Key
 end

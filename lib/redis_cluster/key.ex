@@ -5,6 +5,26 @@ defmodule RedisCluster.Key do
   @doc """
   Computes the hash slot for the given key. If the `:compute_hash_tag` option is given, 
   then looks for a hash tag in the key and uses it, if present, to compute the hash slot.
+
+  ## Options
+
+    * `:compute_hash_tag` - If set to `true`, the hash tag will be computed from the key.
+      This is useful for cluster mode, where keys with the same hash tag are stored
+      in the same slot.
+
+  ## Examples
+
+      iex> RedisCluster.Key.hash_slot("my_key")
+      13711
+
+      iex> RedisCluster.Key.hash_slot("my_key", compute_hash_tag: true)
+      13711
+
+      iex> RedisCluster.Key.hash_slot("{user1234}:contact", compute_hash_tag: true)
+      14020
+
+      iex> RedisCluster.Key.hash_slot("{user1234}:search_history", compute_hash_tag: true)
+      14020
   """
   @spec hash_slot(binary(), Keyword.t()) :: hash()
   def hash_slot(key, opts \\ []) when is_binary(key) do
@@ -17,7 +37,25 @@ defmodule RedisCluster.Key do
   Computes the [hash tag](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/#hash-tags)
   of the key, if any.
 
-  # TODO: Add doc tests
+  ## Examples
+
+      iex> RedisCluster.Key.hashtag("{user1234}:contact")
+      "user1234"
+
+      iex> RedisCluster.Key.hashtag("search_history:{user1234}")
+      "user1234"
+
+      iex> RedisCluster.Key.hashtag("{user1234}:orders:{not_a_tag}")
+      "user1234"
+
+      iex> RedisCluster.Key.hashtag("{}:" <> <<0xDE, 0xAD, 0xC0, 0xDE>>)
+      nil
+
+      iex> RedisCluster.Key.hashtag("{}:some_key:{not_a_tag}")
+      nil
+
+      iex> RedisCluster.Key.hashtag("my_key")
+      nil
   """
   @spec hashtag(binary()) :: binary() | nil
   def hashtag(key) do
