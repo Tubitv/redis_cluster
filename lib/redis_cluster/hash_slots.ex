@@ -28,7 +28,7 @@ defmodule RedisCluster.HashSlots do
     :ok
   end
 
-  @spec with_lock(Configuration.t(), (() -> term)) :: term
+  @spec with_lock(Configuration.t(), (-> term)) :: term
   def with_lock(%Configuration{name: name}, fun) do
     Lock.with_lock(name, fun)
   end

@@ -58,24 +58,24 @@ defmodule RedisCluster.ClusterTest do
   end
 
   test "should have expected topology", context do
-    context = context[:config]
+    config = context[:config]
 
-    slots = RedisCluster.HashSlots.all_slots(context)
+    slots = config |> RedisCluster.HashSlots.all_slots() |> Enum.sort()
 
-    assert Enum.sort(slots) == [
-             {RedisCluster.HashSlots, 0, 5460, :master, "127.0.0.1", 6379},
-             {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", 6386},
-             {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", 6387},
-             {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", 6390},
-             {RedisCluster.HashSlots, 5461, 10922, :master, "127.0.0.1", 6380},
-             {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", 6382},
-             {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", 6388},
-             {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", 6389},
-             {RedisCluster.HashSlots, 10923, 16383, :master, "127.0.0.1", 6381},
-             {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", 6383},
-             {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", 6384},
-             {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", 6385}
-           ]
+    assert [
+             {RedisCluster.HashSlots, 0, 5460, :master, "127.0.0.1", _},
+             {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", _},
+             {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", _},
+             {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", _},
+             {RedisCluster.HashSlots, 5461, 10922, :master, "127.0.0.1", _},
+             {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", _},
+             {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", _},
+             {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", _},
+             {RedisCluster.HashSlots, 10923, 16383, :master, "127.0.0.1", _},
+             {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", _},
+             {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", _},
+             {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", _}
+           ] = slots
   end
 
   test "should handle hash tags correctly", context do

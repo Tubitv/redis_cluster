@@ -42,7 +42,7 @@ defmodule RedisCluster.ShardDiscovery do
     HashSlots.with_lock(config, fn ->
       info = cluster_info(config)
 
-      Logger.debug("Found cluster info #{inspect(info)}")
+      Logger.debug("Found cluster info\n#{NodeInfo.to_table(info)}")
 
       stop_pool(config)
       create_pool(config, info)
