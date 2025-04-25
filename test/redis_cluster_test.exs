@@ -39,9 +39,9 @@ defmodule RedisClusterTest do
 
   test "should handle the multi-key operations" do
     pairs = %{
-      "mutlti-key-test-1" => "value1",
-      "mutlti-key-test-2" => "value2",
-      "mutlti-key-test-3" => "value3"
+      "multi-key-test-1" => "value1",
+      "multi-key-test-2" => "value2",
+      "multi-key-test-3" => "value3"
     }
 
     assert :ok = TestRedis.set_many(pairs)

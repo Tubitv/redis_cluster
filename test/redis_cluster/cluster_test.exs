@@ -1,6 +1,8 @@
 defmodule RedisCluster.ClusterTest do
   use ExUnit.Case, async: true
 
+  alias RedisCluster.Cluster
+
   setup_all do
     config =
       RedisCluster.Configuration.from_app_env(
@@ -13,7 +15,7 @@ defmodule RedisCluster.ClusterTest do
         RedisCluster.ClusterTest
       )
 
-    case RedisCluster.Cluster.start_link(config) do
+    case Cluster.start_link(config) do
       {:ok, pid} ->
         pid
 
@@ -27,194 +29,456 @@ defmodule RedisCluster.ClusterTest do
     {:ok, config: config}
   end
 
-  test "config", context do
-    config = context[:config]
+  describe "bookkeeping operations" do
+    test "config", context do
+      config = context[:config]
 
-    assert config.host == "localhost"
-    assert config.port == 6379
-    assert config.pool_size == 3
-    assert config.name == RedisCluster.ClusterTest
-    assert config.registry == RedisCluster.ClusterTest.Registry__
-    assert config.cluster == RedisCluster.ClusterTest.Cluster__
-    assert config.pool == RedisCluster.ClusterTest.Pool__
-    assert config.shard_discovery == RedisCluster.ClusterTest.ShardDiscovery__
-  end
-
-  test "should handle basic operations", context do
-    config = context[:config]
-
-    key = "basic_ops_key"
-
-    assert :ok = RedisCluster.Cluster.set(config, key, "test_value")
-    assert "test_value" = RedisCluster.Cluster.get(config, key)
-    assert 1 = RedisCluster.Cluster.delete(config, key)
-    assert nil == RedisCluster.Cluster.get(config, key)
-  end
-
-  test "should get nil for non-existent key", context do
-    config = context[:config]
-
-    assert nil == RedisCluster.Cluster.get(config, "bogus")
-  end
-
-  test "should have expected topology", context do
-    config = context[:config]
-
-    slots = config |> RedisCluster.HashSlots.all_slots() |> Enum.sort()
-
-    assert [
-             {RedisCluster.HashSlots, 0, 5460, :master, "127.0.0.1", _},
-             {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", _},
-             {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", _},
-             {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", _},
-             {RedisCluster.HashSlots, 5461, 10922, :master, "127.0.0.1", _},
-             {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", _},
-             {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", _},
-             {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", _},
-             {RedisCluster.HashSlots, 10923, 16383, :master, "127.0.0.1", _},
-             {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", _},
-             {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", _},
-             {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", _}
-           ] = slots
-  end
-
-  test "should handle hash tags correctly", context do
-    config = context[:config]
-
-    # These keys should hash to the same slot due to the hash tag.
-    pairs = %{
-      "{user:123}:age" => 30,
-      "{user:123}:email" => "john@example.com",
-      "{user:123}:name" => "John"
-    }
-
-    keys = pairs |> Map.keys() |> Enum.sort()
-
-    # Set values for all keys
-    for {key, value} <- pairs do
-      assert :ok = RedisCluster.Cluster.set(config, key, value, compute_hash_tag: true)
+      assert config.host == "localhost"
+      assert config.port == 6379
+      assert config.pool_size == 3
+      assert config.name == RedisCluster.ClusterTest
+      assert config.registry == RedisCluster.ClusterTest.Registry__
+      assert config.cluster == RedisCluster.ClusterTest.Cluster__
+      assert config.pool == RedisCluster.ClusterTest.Pool__
+      assert config.shard_discovery == RedisCluster.ClusterTest.ShardDiscovery__
     end
 
-    # Try a multi-key operation which should work since all keys hash to the same slot
-    cmd = ["MGET" | keys]
+    test "should have expected topology", context do
+      config = context[:config]
 
-    assert ["30", "john@example.com", "John"] ==
-             RedisCluster.Cluster.command(config, cmd,
-               key: List.first(keys),
-               compute_hash_tag: true
-             )
+      slots = config |> RedisCluster.HashSlots.all_slots() |> Enum.sort()
 
-    # Clean up
-    for key <- keys do
-      RedisCluster.Cluster.delete(config, key, compute_hash_tag: true)
+      assert [
+               {RedisCluster.HashSlots, 0, 5460, :master, "127.0.0.1", _},
+               {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", _},
+               {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", _},
+               {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", _},
+               {RedisCluster.HashSlots, 5461, 10922, :master, "127.0.0.1", _},
+               {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", _},
+               {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", _},
+               {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", _},
+               {RedisCluster.HashSlots, 10923, 16383, :master, "127.0.0.1", _},
+               {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", _},
+               {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", _},
+               {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", _}
+             ] = slots
     end
   end
 
-  test "should avoid cross-slot error with hash tags", context do
-    config = context[:config]
+  describe "single-key operations" do
+    test "should handle basic operations", context do
+      config = context[:config]
 
-    # Keys that will hash to different slots
-    different_slot_keys = ["key1", "key2"]
+      key = "basic_ops_key"
 
-    for {key, value} <- Enum.zip(different_slot_keys, ["value1", "value2"]) do
-      assert :ok = RedisCluster.Cluster.set(config, key, value)
+      assert :ok = Cluster.set(config, key, "test_value")
+      assert "test_value" = Cluster.get(config, key)
+      assert 1 = Cluster.delete(config, key)
+      assert nil == Cluster.get(config, key)
     end
 
-    # MGET across slots should return an error
-    cmd = ["MGET" | different_slot_keys]
+    test "should get nil for non-existent key", context do
+      config = context[:config]
 
-    result =
-      RedisCluster.Cluster.command(config, cmd,
-        key: List.first(different_slot_keys),
-        compute_hash_tag: true
-      )
+      assert nil == Cluster.get(config, "bogus")
+    end
 
-    assert match?({:error, _}, result)
+    test "should handle large values", context do
+      config = context[:config]
+      key = "large_value_key"
 
-    # Clean up
-    for key <- different_slot_keys do
-      RedisCluster.Cluster.delete(config, key)
+      # Create a 1MB string
+      large_value = String.duplicate("a", 1024 * 1024)
+
+      assert :ok = Cluster.set(config, key, large_value)
+      assert ^large_value = Cluster.get(config, key)
+
+      # Clean up
+      Cluster.delete(config, key)
+    end
+
+    test "should handle special characters in keys", context do
+      config = context[:config]
+
+      special_keys = [
+        "key:with:colons",
+        "key-with-dashes",
+        "key_with_underscores",
+        "key with spaces",
+        "key.with.dots",
+        "key@with@at@signs",
+        "key#with#hashes"
+      ]
+
+      for {key, index} <- Enum.with_index(special_keys) do
+        value = "special_character_value_#{index}"
+        assert :ok = Cluster.set(config, key, value)
+        assert value == Cluster.get(config, key)
+        assert 1 == Cluster.delete(config, key)
+      end
+    end
+
+    test "should handle binary keys", context do
+      config = context[:config]
+
+      key = <<0xDE, 0xAD, 0xC0, 0xDE>>
+      value = "value"
+
+      assert :ok = Cluster.set(config, key, value)
+      assert value == Cluster.get(config, key)
+      assert 1 == Cluster.delete(config, key)
+    end
+
+    test "should handle seconds expiration option", context do
+      config = context[:config]
+
+      # Test setting with expiration in seconds
+      key = "expiry_test_seconds"
+      assert :ok = Cluster.set(config, key, "value1", expire_seconds: 1)
+      assert "value1" = Cluster.get(config, key)
+
+      # Wait for expiration
+      Process.sleep(1500)
+      assert nil == Cluster.get(config, key)
+    end
+
+    test "should handle milliseconds expiration option", context do
+      config = context[:config]
+
+      # Test setting with expiration in milliseconds
+      key = "expiry_test_ms"
+      assert :ok = Cluster.set(config, key, "value2", expire_milliseconds: 500)
+      assert "value2" = Cluster.get(config, key)
+
+      # Wait for expiration
+      Process.sleep(1000)
+      assert nil == Cluster.get(config, key)
+    end
+
+    test "should handle role-based operations", context do
+      config = context[:config]
+      key = "role_test_key"
+
+      # Write to master
+      assert :ok = Cluster.set(config, key, "master_value", role: :master)
+
+      # Read from master
+      assert "master_value" = Cluster.get(config, key, role: :master)
+
+      # Give time for replication
+      :timer.sleep(100)
+
+      # Read from replica (should get the same value)
+      assert "master_value" = Cluster.get(config, key, role: :replica)
+
+      # Clean up
+      Cluster.delete(config, key)
+    end
+
+    test "should overwrite when instructed", context do
+      config = context[:config]
+      key = "overwrite_test_key"
+
+      # Fail to set initial value
+      assert nil == Cluster.set(config, key, "initial_value", set: :only_overwrite)
+      assert nil == Cluster.get(config, key)
+
+      # Actually set initial value
+      assert :ok = Cluster.set(config, key, "initial_value")
+      assert "initial_value" = Cluster.get(config, key)
+
+      # Overwrite with a new value
+      assert :ok = Cluster.set(config, key, "new_value", set: :only_overwrite)
+
+      # Check the new value
+      assert "new_value" = Cluster.get(config, key)
+
+      # Clean up
+      Cluster.delete(config, key)
+    end
+
+    test "should not overwrite when forbidden", context do
+      config = context[:config]
+      key = "overwrite_test_key"
+
+      # Set initial value
+      assert :ok = Cluster.set(config, key, "initial_value")
+      assert "initial_value" = Cluster.get(config, key)
+
+      # Overwrite with a new value
+      assert nil == Cluster.set(config, key, "new_value", set: :only_new)
+
+      # Check the new value
+      assert "initial_value" = Cluster.get(config, key)
+
+      # Clean up
+      Cluster.delete(config, key)
+    end
+
+    test "should handle pipelined commands", context do
+      config = context[:config]
+
+      key = "pipelined_key"
+      value = "value"
+
+      result =
+        Cluster.pipeline(
+          config,
+          [
+            ["GET", key],
+            ["SET", key, value],
+            ["GET", key],
+            ["DEL", key]
+          ],
+          key: key
+        )
+
+      assert [nil, "OK", "value", 1] = result
+      assert nil == Cluster.get(config, key)
+    end
+
+    test "should handle broadcast commands", context do
+      config = context[:config]
+
+      result = Cluster.broadcast(config, [~w[INFO STATS]])
+
+      assert [
+               {"127.0.0.1", 6379, {:ok, ["" <> _]}},
+               {"127.0.0.1", 6380, {:ok, ["" <> _]}},
+               {"127.0.0.1", 6381, {:ok, ["" <> _]}},
+               {"127.0.0.1", 6382, {:ok, ["" <> _]}},
+               {"127.0.0.1", 6383, {:ok, ["" <> _]}},
+               {"127.0.0.1", 6384, {:ok, ["" <> _]}},
+               {"127.0.0.1", 6385, {:ok, ["" <> _]}},
+               {"127.0.0.1", 6386, {:ok, ["" <> _]}},
+               {"127.0.0.1", 6387, {:ok, ["" <> _]}},
+               {"127.0.0.1", 6388, {:ok, ["" <> _]}},
+               {"127.0.0.1", 6389, {:ok, ["" <> _]}},
+               {"127.0.0.1", 6390, {:ok, ["" <> _]}}
+             ] = Enum.sort(result)
     end
   end
 
-  test "should handle large values", context do
-    config = context[:config]
-    key = "large_value_key"
+  describe "multi-key operations" do
+    test "should handle the multi-key operations", context do
+      config = context[:config]
 
-    # Create a 1MB string
-    large_value = String.duplicate("a", 1024 * 1024)
+      pairs = %{
+        "cluster-multi-key-test-1" => "value1",
+        "cluster-multi-key-test-2" => "value2",
+        "cluster-multi-key-test-3" => "value3"
+      }
 
-    assert :ok = RedisCluster.Cluster.set(config, key, large_value)
-    assert ^large_value = RedisCluster.Cluster.get(config, key)
+      assert :ok = Cluster.set_many(config, pairs)
+      assert ~w[value1 value2 value3] = Cluster.get_many(config, Map.keys(pairs))
+      assert :ok = Cluster.delete_many(config, Map.keys(pairs))
+      assert [nil, nil, nil] = Cluster.get_many(config, Map.keys(pairs))
+    end
 
-    # Clean up
-    RedisCluster.Cluster.delete(config, key)
-  end
+    test "should handle multi-key operations with an empty list", context do
+      config = context[:config]
 
-  test "should handle special characters in keys", context do
-    config = context[:config]
+      assert :ok = Cluster.set_many(config, %{})
+      assert :ok = Cluster.set_many(config, [])
+      assert [] = Cluster.get_many(config, [])
+      assert 0 = Cluster.delete_many(config, [])
+    end
 
-    special_keys = [
-      "key:with:colons",
-      "key-with-dashes",
-      "key_with_underscores",
-      "key with spaces",
-      "key.with.dots",
-      "key@with@at@signs",
-      "key#with#hashes"
-    ]
+    test "should handle multi-key operations with a single item", context do
+      config = context[:config]
 
-    for {key, index} <- Enum.with_index(special_keys) do
-      value = "special_character_value_#{index}"
-      assert :ok = RedisCluster.Cluster.set(config, key, value)
-      assert value == RedisCluster.Cluster.get(config, key)
-      assert 1 == RedisCluster.Cluster.delete(config, key)
+      key = "single-key"
+      value = "value1"
+
+      assert :ok = Cluster.set_many(config, [{key, value}])
+      assert ["value1"] = Cluster.get_many(config, [key])
+      assert 1 = Cluster.delete_many(config, [key])
+      assert [nil] = Cluster.get_many(config, [key])
+
+      assert :ok = Cluster.set_many(config, %{key => value})
+      assert ["value1"] = Cluster.get_many(config, [key])
+      assert 1 = Cluster.delete_many(config, [key])
+      assert [nil] = Cluster.get_many(config, [key])
+    end
+
+    test "should handle the multi-key operations with hash tags", context do
+      config = context[:config]
+
+      pairs = %{
+        "{hashtag}:cluster-multi-key-test-1" => "value1",
+        "{hashtag}:cluster-multi-key-test-2" => "value2",
+        "{hashtag}:cluster-multi-key-test-3" => "value3"
+      }
+
+      assert :ok = Cluster.set_many(config, pairs, compute_hash_tag: true)
+
+      assert ~w[value1 value2 value3] =
+               Cluster.get_many(config, Map.keys(pairs), compute_hash_tag: true)
+
+      assert :ok = Cluster.delete_many(config, Map.keys(pairs), compute_hash_tag: true)
+
+      assert [nil, nil, nil] =
+               Cluster.get_many(config, Map.keys(pairs), compute_hash_tag: true)
+    end
+
+    test "should handle seconds expiration option with multi-key", context do
+      config = context[:config]
+
+      pairs = %{
+        "second-expiration-multi-key-1" => "value1",
+        "second-expiration-multi-key-2" => "value2",
+        "second-expiration-multi-key-3" => "value3"
+      }
+
+      # Test setting with expiration in seconds
+      assert :ok = Cluster.set_many(config, pairs, expire_seconds: 1)
+      assert ["value1", "value2", "value3"] = Cluster.get_many(config, Map.keys(pairs))
+
+      # Wait for expiration
+      Process.sleep(1500)
+      assert [nil, nil, nil] = Cluster.get_many(config, Map.keys(pairs))
+    end
+
+    test "should handle milliseconds expiration option with multi-key", context do
+      config = context[:config]
+
+      pairs = %{
+        "millisecond-expiration-multi-key-1" => "value1",
+        "millisecond-expiration-multi-key-2" => "value2",
+        "millisecond-expiration-multi-key-3" => "value3"
+      }
+
+      # Test setting with expiration in milliseconds
+      assert :ok = Cluster.set_many(config, pairs, expire_milliseconds: 500)
+      assert ["value1", "value2", "value3"] = Cluster.get_many(config, Map.keys(pairs))
+
+      # Wait for expiration
+      Process.sleep(1000)
+      assert [nil, nil, nil] = Cluster.get_many(config, Map.keys(pairs))
+    end
+
+    test "should overwrite when instructed with multi-key", context do
+      config = context[:config]
+
+      pairs = %{
+        "overwrite_test_multikey1" => "initial",
+        "overwrite_test_multikey2" => "initial",
+        "overwrite_test_multikey3" => "initial"
+      }
+
+      # Fail to set initial value
+      assert :ok = Cluster.set_many(config, pairs, set: :only_overwrite)
+      assert [nil, nil, nil] = Cluster.get_many(config, Map.keys(pairs))
+
+      # Actually set initial value
+      assert :ok = Cluster.set_many(config, pairs)
+      assert ~w[initial initial initial] = Cluster.get_many(config, Map.keys(pairs))
+
+      new_pairs = %{
+        "overwrite_test_multikey1" => "new",
+        "overwrite_test_multikey2" => "new",
+        "overwrite_test_multikey3" => "new"
+      }
+
+      # Overwrite with a new value
+      assert :ok = Cluster.set_many(config, new_pairs, set: :only_overwrite)
+
+      # Check the new value
+      assert ~w[new new new] = Cluster.get_many(config, Map.keys(new_pairs))
+
+      # Clean up
+      Cluster.delete_many(config, Map.keys(pairs))
+    end
+
+    test "should not overwrite when forbidden with multi-key", context do
+      config = context[:config]
+
+      pairs = %{
+        "write_new_test_multikey1" => "initial",
+        "write_new_test_multikey2" => "initial",
+        "write_new_test_multikey3" => "initial"
+      }
+
+      # Set initial value
+      assert :ok = Cluster.set_many(config, pairs, set: :only_new)
+
+      assert ~w[initial initial initial] = Cluster.get_many(config, Map.keys(pairs))
+
+      new_pairs = %{
+        "write_new_test_multikey1" => "new",
+        "write_new_test_multikey2" => "new",
+        "write_new_test_multikey3" => "new"
+      }
+
+      # Overwrite with a new value
+      assert :ok = Cluster.set_many(config, new_pairs, set: :only_new)
+
+      # Check the new value
+      assert ~w[initial initial initial] = Cluster.get_many(config, Map.keys(pairs))
+
+      # Clean up
+      Cluster.delete_many(config, Map.keys(pairs))
     end
   end
 
-  test "should handle seconds expiration option", context do
-    config = context[:config]
+  describe "hash tag operations" do
+    test "should handle hash tags correctly", context do
+      config = context[:config]
 
-    # Test setting with expiration in seconds
-    key1 = "expiry_test_seconds"
-    assert :ok = RedisCluster.Cluster.set(config, key1, "value1", expire_seconds: 1)
-    assert "value1" = RedisCluster.Cluster.get(config, key1)
+      # These keys should hash to the same slot due to the hash tag.
+      pairs = %{
+        "{user:123}:age" => 30,
+        "{user:123}:email" => "john@example.com",
+        "{user:123}:name" => "John"
+      }
 
-    # Wait for expiration
-    Process.sleep(1500)
-    assert nil == RedisCluster.Cluster.get(config, key1)
-  end
+      keys = pairs |> Map.keys() |> Enum.sort()
 
-  test "should handle milliseconds expiration option", context do
-    config = context[:config]
+      # Set values for all keys
+      for {key, value} <- pairs do
+        assert :ok = Cluster.set(config, key, value, compute_hash_tag: true)
+      end
 
-    # Test setting with expiration in milliseconds
-    key2 = "expiry_test_ms"
-    assert :ok = RedisCluster.Cluster.set(config, key2, "value2", expire_milliseconds: 500)
-    assert "value2" = RedisCluster.Cluster.get(config, key2)
+      # Try a multi-key operation which should work since all keys hash to the same slot
+      cmd = ["MGET" | keys]
 
-    # Wait for expiration
-    Process.sleep(1000)
-    assert nil == RedisCluster.Cluster.get(config, key2)
-  end
+      assert ["30", "john@example.com", "John"] ==
+               Cluster.command(config, cmd,
+                 key: List.first(keys),
+                 compute_hash_tag: true
+               )
 
-  test "should handle role-based operations", context do
-    config = context[:config]
-    key = "role_test_key"
+      # Clean up
+      for key <- keys do
+        Cluster.delete(config, key, compute_hash_tag: true)
+      end
+    end
 
-    # Write to master
-    assert :ok = RedisCluster.Cluster.set(config, key, "master_value", role: :master)
+    test "should avoid cross-slot error with hash tags", context do
+      config = context[:config]
 
-    # Read from master
-    assert "master_value" = RedisCluster.Cluster.get(config, key, role: :master)
+      # Keys that will hash to different slots
+      different_slot_keys = ["key1", "key2"]
 
-    # Give time for replication
-    :timer.sleep(100)
+      for {key, value} <- Enum.zip(different_slot_keys, ["value1", "value2"]) do
+        assert :ok = Cluster.set(config, key, value)
+      end
 
-    # Read from replica (should get the same value)
-    assert "master_value" = RedisCluster.Cluster.get(config, key, role: :replica)
+      # MGET across slots should return an error
+      cmd = ["MGET" | different_slot_keys]
 
-    # Clean up
-    RedisCluster.Cluster.delete(config, key)
+      result =
+        Cluster.command(config, cmd,
+          key: List.first(different_slot_keys),
+          compute_hash_tag: true
+        )
+
+      assert match?({:error, _}, result)
+
+      # Clean up
+      for key <- different_slot_keys do
+        Cluster.delete(config, key)
+      end
+    end
   end
 end

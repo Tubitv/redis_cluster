@@ -7,6 +7,7 @@ defmodule RedisCluster.Cluster do
 
   @type key() :: binary() | atom() | number()
   @type value() :: binary() | atom() | number()
+  @type pairs() :: [{key(), value()}] | %{key() => value()}
   @type command() :: [binary()]
   @type pipeline() :: [command()]
 
@@ -147,14 +148,22 @@ defmodule RedisCluster.Cluster do
       - `:only_overwrite` - Only set the key if it already exists.
       - `:only_new` - Only set the key if it doesn't exist.
   """
-  @spec set_many(Configuration.t(), [{key(), value()}], Keyword.t()) :: :ok | [{:error, any()}]
+  @spec set_many(Configuration.t(), pairs(), Keyword.t()) :: :ok | [{:error, any()}]
   def set_many(config, pairs, opts \\ [])
 
-  def set_many(_config, [], _opts) do
+  def set_many(_config, pairs, _opts)
+      when pairs == []
+      when is_map(pairs) and map_size(pairs) == 0 do
     :ok
   end
 
   def set_many(config, [{k, v}], opts) do
+    opts = Keyword.merge([compute_hash_tag: true], opts)
+    set(config, k, v, opts)
+  end
+
+  def set_many(config, map, opts) when is_map(map) and map_size(map) == 1 do
+    [{k, v}] = Map.to_list(map)
     opts = Keyword.merge([compute_hash_tag: true], opts)
     set(config, k, v, opts)
   end
@@ -212,7 +221,7 @@ defmodule RedisCluster.Cluster do
 
   def get_many(config, [key], opts) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
-    get(config, key, opts)
+    [get(config, key, opts)]
   end
 
   def get_many(config, keys, opts) do
@@ -325,7 +334,7 @@ defmodule RedisCluster.Cluster do
       - `:replica` - Query a replica node.
   """
   @spec pipeline(Configuration.t(), pipeline(), Keyword.t()) :: [term()]
-  def pipeline(config, commands, opts \\ []) do
+  def pipeline(config, commands, opts) do
     role = Keyword.get(opts, :role, :master)
     key = Keyword.fetch!(opts, :key)
     slot = Key.hash_slot(key, opts)
@@ -340,7 +349,7 @@ defmodule RedisCluster.Cluster do
   May filter on a specific role if desired, defaults to all nodes.
   Note that this sends a pipeline instead of a single command. 
   You can issue as many commands as you like and get the raw results back.
-  This is useful for debugging with commands like `DBSIZE` or `INFO USED_MEMORY`.
+  This is useful for debugging with commands like `DBSIZE` or `INFO MEMORY`.
 
   Options:
     * `:role` - The role to use when querying the cluster. Possible values are:
