@@ -3,6 +3,8 @@ defmodule RedisCluster.Cluster.ShardParser do
   Parses the output of the CLUSTER SHARDS command.
   """
 
+  alias RedisCluster.Cluster.NodeInfo
+
   def parse(data) when is_list(data) do
     Enum.flat_map(data, &parse_node/1)
   end
@@ -11,7 +13,7 @@ defmodule RedisCluster.Cluster.ShardParser do
     %{slots: slots, nodes: nodes} = list_to_map(data)
 
     for n <- nodes do
-      %{id: id, ip: ip, port: port, role: role} = list_to_map(n)
+      %{id: id, ip: ip, port: port, role: role, health: health} = list_to_map(n)
       role = atomify(role)
 
       slots =
@@ -21,7 +23,14 @@ defmodule RedisCluster.Cluster.ShardParser do
           RedisCluster.HashSlots.slot_id(start, stop, role, ip, port)
         end)
 
-      %RedisCluster.Cluster.NodeInfo{id: id, slots: slots, host: ip, port: port, role: role}
+      %NodeInfo{
+        id: id,
+        slots: slots,
+        host: ip,
+        port: port,
+        role: role,
+        health: NodeInfo.health_atom(health)
+      }
     end
   end
 

@@ -18,7 +18,9 @@ defmodule RedisCluster.Cluster.SlotParser do
         slots: [RedisCluster.HashSlots.slot_id(start, stop, role, host, port)],
         host: host,
         port: port,
-        role: role
+        role: role,
+        # The slot info doesn't include health status
+        health: :unknown
       }
     end
   end

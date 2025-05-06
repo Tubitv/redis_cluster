@@ -8,11 +8,12 @@ defmodule RedisCluster.Cluster.NodeInfo do
           slots: [RedisCluster.HashSlots.hash_slot()],
           host: String.t(),
           port: non_neg_integer(),
-          role: :master | :replica
+          role: :master | :replica,
+          health: :online | :loading | :failed | :unknown
         }
 
-  @enforce_keys [:id, :slots, :host, :port, :role]
-  defstruct [:id, :slots, :host, :port, :role]
+  @enforce_keys [:id, :slots, :host, :port, :role, :health]
+  defstruct [:id, :slots, :host, :port, :role, :health]
 
   @doc """
   Converts the node info into a table format for display.
@@ -25,13 +26,18 @@ defmodule RedisCluster.Cluster.NodeInfo do
       |> List.wrap()
       |> Enum.flat_map(fn node ->
         for {_, start, stop, role, host, port} <- node.slots do
-          {start, stop, host, port, role}
+          {start, stop, host, port, role, node.health}
         end
       end)
       |> Enum.sort()
 
-    headers = ["Slot Start", "Slot End", "Host", "Port", "Role"]
+    headers = ["Slot Start", "Slot End", "Host", "Port", "Role", "Health"]
 
     RedisCluster.Table.rows_to_iodata(rows, headers)
   end
+
+  def health_atom("online"), do: :online
+  def health_atom("loading"), do: :loading
+  def health_atom("failed"), do: :failed
+  def health_atom(_), do: :unknown
 end

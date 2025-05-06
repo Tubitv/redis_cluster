@@ -89,6 +89,10 @@ defmodule RedisCluster.Table do
     result
   end
 
+  defp build_rows([]) do
+    []
+  end
+
   defp build_rows(columns) do
     Enum.reduce(columns, fn x, acc ->
       for {first, rest} <- Enum.zip(x, acc) do

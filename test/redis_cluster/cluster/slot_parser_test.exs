@@ -10,23 +10,24 @@ defmodule RedisCluster.Cluster.SlotParserTest do
       |> SlotParser.parse()
       |> NodeInfo.to_table()
       |> IO.iodata_to_binary()
+      |> normalize_table()
 
     expected =
       String.trim_trailing("""
-      Slot Start | Slot End | Host      | Port | Role   
-      ---------- | -------- | --------- | ---- | -------
-      0          | 5460     | 127.0.0.1 | 6379 | master 
-      0          | 5460     | 127.0.0.1 | 6383 | replica
-      0          | 5460     | 127.0.0.1 | 6384 | replica
-      0          | 5460     | 127.0.0.1 | 6389 | replica
-      5461       | 10922    | 127.0.0.1 | 6380 | master 
-      5461       | 10922    | 127.0.0.1 | 6382 | replica
-      5461       | 10922    | 127.0.0.1 | 6385 | replica
-      5461       | 10922    | 127.0.0.1 | 6386 | replica
-      10923      | 16383    | 127.0.0.1 | 6381 | master 
-      10923      | 16383    | 127.0.0.1 | 6387 | replica
-      10923      | 16383    | 127.0.0.1 | 6388 | replica
-      10923      | 16383    | 127.0.0.1 | 6390 | replica
+      Slot Start | Slot End | Host      | Port | Role    | Health
+      ---------- | -------- | --------- | ---- | ------- | -------
+      0          | 5460     | 127.0.0.1 | 6379 | master  | unknown
+      0          | 5460     | 127.0.0.1 | 6383 | replica | unknown
+      0          | 5460     | 127.0.0.1 | 6384 | replica | unknown
+      0          | 5460     | 127.0.0.1 | 6389 | replica | unknown
+      5461       | 10922    | 127.0.0.1 | 6380 | master  | unknown
+      5461       | 10922    | 127.0.0.1 | 6382 | replica | unknown
+      5461       | 10922    | 127.0.0.1 | 6385 | replica | unknown
+      5461       | 10922    | 127.0.0.1 | 6386 | replica | unknown
+      10923      | 16383    | 127.0.0.1 | 6381 | master  | unknown
+      10923      | 16383    | 127.0.0.1 | 6387 | replica | unknown
+      10923      | 16383    | 127.0.0.1 | 6388 | replica | unknown
+      10923      | 16383    | 127.0.0.1 | 6390 | replica | unknown
       """)
 
     assert result == expected
@@ -38,66 +39,66 @@ defmodule RedisCluster.Cluster.SlotParserTest do
       |> SlotParser.parse()
       |> NodeInfo.to_table()
       |> IO.iodata_to_binary()
-      |> String.trim_trailing()
+      |> normalize_table()
 
     expected =
       String.trim_trailing("""
-      Slot Start | Slot End | Host                                                             | Port | Role   
-      ---------- | -------- | ---------------------------------------------------------------- | ---- | -------
-      0          | 682      | test-redis4-0013-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      0          | 682      | test-redis4-0013-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      683        | 1365     | test-redis4-0001-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      683        | 1365     | test-redis4-0001-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      1366       | 1487     | test-redis4-0002-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      1366       | 1487     | test-redis4-0002-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      1488       | 2170     | test-redis4-0014-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      1488       | 2170     | test-redis4-0014-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      2171       | 2731     | test-redis4-0002-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      2171       | 2731     | test-redis4-0002-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      2732       | 3414     | test-redis4-0015-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      2732       | 3414     | test-redis4-0015-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      3415       | 4097     | test-redis4-0003-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      3415       | 4097     | test-redis4-0003-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      4098       | 4780     | test-redis4-0016-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      4098       | 4780     | test-redis4-0016-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      4781       | 5463     | test-redis4-0004-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      4781       | 5463     | test-redis4-0004-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      5464       | 6146     | test-redis4-0005-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      5464       | 6146     | test-redis4-0005-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      6147       | 6828     | test-redis4-0017-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      6147       | 6828     | test-redis4-0017-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      6829       | 7511     | test-redis4-0006-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      6829       | 7511     | test-redis4-0006-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      7512       | 8193     | test-redis4-0018-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      7512       | 8193     | test-redis4-0018-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      8194       | 8875     | test-redis4-0019-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      8194       | 8875     | test-redis4-0019-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      8876       | 9558     | test-redis4-0007-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      8876       | 9558     | test-redis4-0007-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      9559       | 10240    | test-redis4-0020-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      9559       | 10240    | test-redis4-0020-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      10241      | 10923    | test-redis4-0008-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      10241      | 10923    | test-redis4-0008-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      10924      | 11605    | test-redis4-0021-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      10924      | 11605    | test-redis4-0021-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      11606      | 12288    | test-redis4-0009-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      11606      | 12288    | test-redis4-0009-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      12289      | 12340    | test-redis4-0010-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      12289      | 12340    | test-redis4-0010-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      12341      | 13022    | test-redis4-0022-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      12341      | 13022    | test-redis4-0022-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      13023      | 13653    | test-redis4-0010-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      13023      | 13653    | test-redis4-0010-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      13654      | 14335    | test-redis4-0023-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      13654      | 14335    | test-redis4-0023-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      14336      | 15018    | test-redis4-0011-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      14336      | 15018    | test-redis4-0011-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      15019      | 15620    | test-redis4-0012-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      15019      | 15620    | test-redis4-0012-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      15621      | 16302    | test-redis4-0024-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      15621      | 16302    | test-redis4-0024-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
-      16303      | 16383    | test-redis4-0012-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master 
-      16303      | 16383    | test-redis4-0012-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica
+      Slot Start | Slot End | Host                                                             | Port | Role    | Health
+      ---------- | -------- | ---------------------------------------------------------------- | ---- | ------- | -------
+      0          | 682      | test-redis4-0013-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      0          | 682      | test-redis4-0013-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      683        | 1365     | test-redis4-0001-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      683        | 1365     | test-redis4-0001-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      1366       | 1487     | test-redis4-0002-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      1366       | 1487     | test-redis4-0002-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      1488       | 2170     | test-redis4-0014-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      1488       | 2170     | test-redis4-0014-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      2171       | 2731     | test-redis4-0002-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      2171       | 2731     | test-redis4-0002-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      2732       | 3414     | test-redis4-0015-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      2732       | 3414     | test-redis4-0015-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      3415       | 4097     | test-redis4-0003-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      3415       | 4097     | test-redis4-0003-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      4098       | 4780     | test-redis4-0016-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      4098       | 4780     | test-redis4-0016-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      4781       | 5463     | test-redis4-0004-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      4781       | 5463     | test-redis4-0004-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      5464       | 6146     | test-redis4-0005-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      5464       | 6146     | test-redis4-0005-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      6147       | 6828     | test-redis4-0017-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      6147       | 6828     | test-redis4-0017-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      6829       | 7511     | test-redis4-0006-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      6829       | 7511     | test-redis4-0006-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      7512       | 8193     | test-redis4-0018-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      7512       | 8193     | test-redis4-0018-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      8194       | 8875     | test-redis4-0019-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      8194       | 8875     | test-redis4-0019-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      8876       | 9558     | test-redis4-0007-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      8876       | 9558     | test-redis4-0007-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      9559       | 10240    | test-redis4-0020-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      9559       | 10240    | test-redis4-0020-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      10241      | 10923    | test-redis4-0008-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      10241      | 10923    | test-redis4-0008-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      10924      | 11605    | test-redis4-0021-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      10924      | 11605    | test-redis4-0021-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      11606      | 12288    | test-redis4-0009-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      11606      | 12288    | test-redis4-0009-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      12289      | 12340    | test-redis4-0010-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      12289      | 12340    | test-redis4-0010-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      12341      | 13022    | test-redis4-0022-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      12341      | 13022    | test-redis4-0022-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      13023      | 13653    | test-redis4-0010-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      13023      | 13653    | test-redis4-0010-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      13654      | 14335    | test-redis4-0023-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      13654      | 14335    | test-redis4-0023-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      14336      | 15018    | test-redis4-0011-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      14336      | 15018    | test-redis4-0011-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      15019      | 15620    | test-redis4-0012-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      15019      | 15620    | test-redis4-0012-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      15621      | 16302    | test-redis4-0024-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      15621      | 16302    | test-redis4-0024-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
+      16303      | 16383    | test-redis4-0012-001.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | master  | unknown
+      16303      | 16383    | test-redis4-0012-002.test-redis4.abcdef.usw2.cache.amazonaws.com | 6379 | replica | unknown
       """)
 
     assert result == expected
@@ -567,5 +568,12 @@ defmodule RedisCluster.Cluster.SlotParserTest do
         ]
       ]
     ]
+  end
+
+  defp normalize_table(table_string) do
+    table_string
+    |> String.split("\n")
+    |> Enum.map(&String.trim/1)
+    |> Enum.join("\n")
   end
 end

@@ -161,7 +161,7 @@ defmodule RedisCluster.Lock do
       ...> end)
       :operation_complete
   """
-  @spec with_lock(name(), (() -> term)) :: term
+  @spec with_lock(name(), (-> term)) :: term
   def with_lock(name, fun) when is_atom(name) do
     lock(name)
     result = fun.()
