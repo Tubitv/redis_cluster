@@ -1,4 +1,4 @@
-![CI](https://github.com/rbrown/redis_cluster/workflows/CI/badge.svg)
+[![CI](https://github.com/Tubitv/redis-cluster/actions/workflows/elixir.yml/badge.svg)](https://github.com/Tubitv/redis-cluster/actions/workflows/elixir.yml)
 
 # RedisCluster
 
