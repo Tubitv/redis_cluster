@@ -157,8 +157,8 @@ defmodule CLI do
   defp purge_files(ports, opts) do
     for port <- ports do
       Printer.print("Purging files for Redis on port #{port}")
-      Shell.run(["rm", "-rf", "#{System.tmp_dir()}redis/#{port}"], opts)
-      Shell.run(["rm", "-rf", "#{System.tmp_dir()}redis/#{port}.log"], opts)
+      Shell.run(["rm", "-rf", "#{tmp_dir()}redis/#{port}"], opts)
+      Shell.run(["rm", "-rf", "#{tmp_dir()}redis/#{port}.log"], opts)
     end
   end
 
@@ -201,14 +201,14 @@ defmodule RedisCluster do
     cluster-config-file nodes-#{port}.conf
     cluster-node-timeout 5000
 
-    dir #{System.tmp_dir()}redis/#{port}
+    dir #{tmp_dir()}redis/#{port}
 
     appendonly yes
 
     protected-mode no
     bind 0.0.0.0
 
-    logfile "#{System.tmp_dir()}redis/#{port}.log"
+    logfile "#{tmp_dir()}redis/#{port}.log"
 
     dbfilename dump-#{port}.rdb
 
@@ -220,14 +220,24 @@ defmodule RedisCluster do
 
   defp create_root_dir(ports, opts) do
     for port <- ports do
-      Shell.run(["mkdir", "-p", "#{System.tmp_dir()}redis/#{port}"], opts)
+      Shell.run(["mkdir", "-p", "#{tmp_dir()}redis/#{port}"], opts)
+    end
+  end
+
+  defp tmp_dir() do
+    dir = System.tmp_dir()
+
+    if String.ends_with?(dir, "/") do
+      dir
+    else
+      dir <> "/"
     end
   end
 
   defp start_instances(ports, opts) do
     for port <- ports do
       Printer.print("Starting Redis on port #{port}")
-      path = "#{System.tmp_dir()}redis-#{port}.conf"
+      path = "#{tmp_dir()}redis-#{port}.conf"
       File.write!(path, create_redis_conf(port))
 
       Task.start(fn ->
