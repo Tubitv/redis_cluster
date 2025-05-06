@@ -1,3 +1,5 @@
+![CI](https://github.com/rbrown/redis_cluster/workflows/CI/badge.svg)
+
 # RedisCluster
 
 **TODO: Add description**
