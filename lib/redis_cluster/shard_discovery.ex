@@ -70,7 +70,7 @@ defmodule RedisCluster.ShardDiscovery do
   end
 
   defp fetch_cluster_info(conn) do
-    cluster_shards(conn) || cluster_slots(conn)
+    cluster_shards(conn) || cluster_slots(conn) || []
   end
 
   defp cluster_shards(conn) do
