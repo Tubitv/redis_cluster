@@ -55,9 +55,7 @@ defmodule RedisCluster.MixProject do
       {:redix, "~> 1.5"},
       {:crc, "~> 0.10"},
       {:ex_doc, "~> 0.34", only: [:dev], runtime: false},
-      {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
-      # Just for debugging in Livebook
-      {:kino, "~> 0.15.3"}
+      {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
     ]
   end
 end
