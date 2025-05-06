@@ -49,6 +49,7 @@ defmodule RedisCluster.ShardDiscovery do
 
       slots = Enum.flat_map(info, & &1.slots)
 
+      HashSlots.delete(config)
       HashSlots.add_slots(config, slots)
     end)
   end

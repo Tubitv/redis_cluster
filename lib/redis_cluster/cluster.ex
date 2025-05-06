@@ -311,7 +311,7 @@ defmodule RedisCluster.Cluster do
       - `:replica` - Query a replica node.
   """
   @spec command(Configuration.t(), command(), Keyword.t()) :: term()
-  def command(config, command, opts \\ []) do
+  def command(config, command, opts) do
     role = Keyword.get(opts, :role, :master)
     key = opts |> Keyword.fetch!(:key) |> to_string()
     slot = Key.hash_slot(key, opts)
