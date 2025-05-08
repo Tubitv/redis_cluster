@@ -39,5 +39,6 @@ defmodule RedisCluster.Cluster.NodeInfo do
   def health_atom("online"), do: :online
   def health_atom("loading"), do: :loading
   def health_atom("failed"), do: :failed
+  def health_atom("fail"), do: :failed
   def health_atom(_), do: :unknown
 end

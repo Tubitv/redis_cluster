@@ -4,6 +4,7 @@ defmodule RedisCluster.ShardDiscovery do
   require Logger
 
   alias RedisCluster.Cluster.NodeInfo
+  alias RedisCluster.ClusterInfo
   alias RedisCluster.Configuration
   alias RedisCluster.HashSlots
 
@@ -40,47 +41,23 @@ defmodule RedisCluster.ShardDiscovery do
     Logger.debug("Discovering shards for #{config.name}")
 
     HashSlots.with_lock(config, fn ->
-      info =
-        config
-        |> cluster_info()
-        |> Enum.filter(&(&1.health in [:online, :unknown]))
+      info = ClusterInfo.query(config)
 
       Logger.debug("Found cluster info\n#{NodeInfo.to_table(info)}")
 
-      stop_pool(config)
-      create_pool(config, info)
+      online_nodes =
+        Enum.filter(info, fn node_info ->
+          node_info.health in [:online, :unknown]
+        end)
 
-      slots = Enum.flat_map(info, & &1.slots)
+      stop_pool(config)
+      create_pool(config, online_nodes)
+
+      slots = Enum.flat_map(online_nodes, & &1.slots)
 
       HashSlots.delete(config)
       HashSlots.add_slots(config, slots)
     end)
-  end
-
-  @spec cluster_info(Configuration.t()) :: [NodeInfo.t()] | no_return()
-  defp cluster_info(config) do
-    {:ok, conn} = Redix.start_link(host: config.host, port: config.port)
-
-    info = fetch_cluster_info(conn)
-
-    # Do I need to stop the connection here?
-    Process.exit(conn, :normal)
-
-    info
-  end
-
-  defp fetch_cluster_info(conn) do
-    cluster_shards(conn) || cluster_slots(conn) || []
-  end
-
-  defp cluster_shards(conn) do
-    case Redix.command(conn, ~w[CLUSTER SHARDS]) do
-      {:ok, data} ->
-        RedisCluster.Cluster.ShardParser.parse(data)
-
-      {:error, _} ->
-        nil
-    end
   end
 
   defp stop_pool(config) do
@@ -93,15 +70,5 @@ defmodule RedisCluster.ShardDiscovery do
     end
 
     :ok
-  end
-
-  defp cluster_slots(conn) do
-    case Redix.command(conn, ~w[CLUSTER SLOTS]) do
-      {:ok, data} ->
-        RedisCluster.Cluster.SlotParser.parse(data)
-
-      {:error, _} ->
-        nil
-    end
   end
 end
