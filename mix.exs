@@ -2,7 +2,7 @@ defmodule RedisCluster.MixProject do
   use Mix.Project
 
   @homepage_url "https://tubitv.hexdocs.pm/redis_cluster"
-  @source_url "https://github.com/Tubitv/redis-clusterhttps://github.com/Tubitv/redis-cluster//"
+  @source_url "https://github.com/Tubitv/redis-cluster"
   @version "0.1.0"
 
   def project do
