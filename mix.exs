@@ -1,13 +1,19 @@
 defmodule RedisCluster.MixProject do
   use Mix.Project
 
+  @homepage_url "https://tubitv.hexdocs.pm/redis_cluster"
+  @source_url "https://github.com/Tubitv/redis-clusterhttps://github.com/Tubitv/redis-cluster//"
+  @version "0.1.0"
+
   def project do
     [
       app: :redis_cluster,
-      version: "0.1.0",
+      version: @version,
       elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       dialyzer: dialyzer_opts(),
+      package: package(),
+      docs: docs(),
       deps: deps()
     ]
   end
@@ -56,6 +62,27 @@ defmodule RedisCluster.MixProject do
       {:crc, "~> 0.10"},
       {:ex_doc, "~> 0.34", only: [:dev], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
+    ]
+  end
+
+  def package do
+    %{
+      organization: "tubitv",
+      description: "Extends Redix with Redis cluster support",
+      files: ~w(.formatter.exs mix.exs lib),
+      licenses: "",
+      links: %{"GitHub" => @source_url}
+    }
+  end
+
+  defp docs do
+    [
+      extras: [],
+      main: "RedisCluster",
+      source_url: @source_url,
+      homepage_url: @homepage_url,
+      source_ref: @version,
+      formatters: ["html"]
     ]
   end
 end
