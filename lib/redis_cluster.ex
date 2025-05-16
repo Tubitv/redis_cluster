@@ -71,42 +71,44 @@ defmodule RedisCluster do
 
   defmacro __using__(macro_opts) do
     quote bind_quoted: [macro_opts: macro_opts] do
-      @config RedisCluster.Configuration.from_app_env(macro_opts, __MODULE__)
-
       def start_link(_) do
-        RedisCluster.Cluster.start_link(@config)
+        RedisCluster.Cluster.start_link(config())
+      end
+
+      def child_spec(opts \\ []) do
+        RedisCluster.Cluster.child_spec(config(), opts)
       end
 
       def config() do
-        @config
+        RedisCluster.Configuration.from_app_env(unquote(macro_opts), __MODULE__)
       end
 
       def get(key, opts \\ []) do
-        RedisCluster.Cluster.get(@config, key, opts)
+        RedisCluster.Cluster.get(config(), key, opts)
       end
 
       def get_many(keys, opts \\ []) do
-        RedisCluster.Cluster.get_many(@config, keys, opts)
+        RedisCluster.Cluster.get_many(config(), keys, opts)
       end
 
       def set(key, value, opts \\ []) do
-        RedisCluster.Cluster.set(@config, key, value, opts)
+        RedisCluster.Cluster.set(config(), key, value, opts)
       end
 
       def set_many(entries, opts \\ []) do
-        RedisCluster.Cluster.set_many(@config, entries, opts)
+        RedisCluster.Cluster.set_many(config(), entries, opts)
       end
 
       def delete(key, opts \\ []) do
-        RedisCluster.Cluster.delete(@config, key, opts)
+        RedisCluster.Cluster.delete(config(), key, opts)
       end
 
       def delete_many(keys, opts \\ []) do
-        RedisCluster.Cluster.delete_many(@config, keys, opts)
+        RedisCluster.Cluster.delete_many(config(), keys, opts)
       end
 
       def command(command, opts \\ []) do
-        RedisCluster.Cluster.command(@config, command, opts)
+        RedisCluster.Cluster.command(config(), command, opts)
       end
 
       def command!(command, opts \\ []) do
@@ -116,7 +118,7 @@ defmodule RedisCluster do
       end
 
       def pipeline(commands, opts \\ []) do
-        RedisCluster.Cluster.pipeline(@config, commands, opts)
+        RedisCluster.Cluster.pipeline(config(), commands, opts)
       end
 
       def pipeline!(commands, opts \\ []) do

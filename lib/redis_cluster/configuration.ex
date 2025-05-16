@@ -41,7 +41,22 @@ defmodule RedisCluster.Configuration do
   end
 
   defp env(otp_app, name, _opts) do
-    Application.get_env(otp_app, name)
+    case Application.get_env(otp_app, name) do
+      nil ->
+        raise ArgumentError,
+              """
+              RedisCluster configuration not found for #{inspect(name)} in app #{inspect(otp_app)}
+              Please ensure you have something like the following in your config:
+
+                  config :#{otp_app}, #{inspect(name)},
+                    host: System.get_env("REDIS_CLUSTER_URL", "localhost"),
+                    port: System.get_env("REDIS_CLUSTER_PORT", "6379") |> String.to_integer(),
+                    pool_size: 10
+              """
+
+      opts ->
+        opts
+    end
   end
 
   defp fetch_name(name, env, key, suffix) do

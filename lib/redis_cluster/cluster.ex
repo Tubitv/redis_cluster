@@ -15,6 +15,16 @@ defmodule RedisCluster.Cluster do
     Supervisor.start_link(__MODULE__, config, name: config.cluster)
   end
 
+  def child_spec(config = %Configuration{}, _opts) do
+    %{
+      id: __MODULE__,
+      start: {__MODULE__, :start_link, [config]},
+      type: :supervisor,
+      restart: :permanent,
+      shutdown: 5000
+    }
+  end
+
   @impl Supervisor
   def init(config = %Configuration{}) do
     children = [
@@ -37,7 +47,7 @@ defmodule RedisCluster.Cluster do
       - `:master` - Query the master node.
       - `:replica` - Query a replica node (default).
   """
-  @spec get(Configuration.t(), key(), Keyword.t()) :: binary()
+  @spec get(Configuration.t(), key(), Keyword.t()) :: binary() | nil | {:error, any()}
   def get(config, key, opts \\ []) do
     key = to_string(key)
     role = Keyword.get(opts, :role, :replica)
