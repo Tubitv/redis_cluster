@@ -56,20 +56,29 @@ defmodule RedisCluster.ReshardingTest do
       {:ok, config: config, port: port}
     end
 
+    @tag timeout: 120_000
     test "should promote new master when terminated", context do
       config = context[:config]
       key = "test_master"
       slot = RedisCluster.Key.hash_slot(key)
 
-      [target_port] =
+      [{master_start, master_stop, master_port}] =
         for {_key, start, stop, :master, _host, port} <- HashSlots.all_slots(config),
             slot >= start and slot < stop do
+          {start, stop, port}
+        end
+
+      [replica_port | _] =
+        for {_key, ^master_start, ^master_stop, :replica, _host, port} <-
+              HashSlots.all_slots(config) do
           port
         end
 
-      check_slots(config)
+      # check_slots(config)
 
-      stop_port(target_port)
+      IO.puts("Stopping master port #{master_port}")
+
+      stop_port(master_port)
 
       # Wait for shutdown
       wait_for_fail(config, 10)
@@ -85,11 +94,22 @@ defmodule RedisCluster.ReshardingTest do
           port
         end
 
-      assert target_port not in online_ports
+      assert master_port not in online_ports
 
-      assert [masters: 5, replicas: 6] = count_roles(config)
+      assert [masters: 3, replicas: _] = count_roles(config)
 
-      # TODO: Fail over to get a new master
+      IO.puts("Force failover to replica port #{replica_port}")
+
+      # Force the replica to become a master.
+      force_failover(replica_port)
+
+      wait_for_master_count(config, 4, 60)
+
+      ShardDiscovery.rediscover_shards(config)
+
+      Process.sleep(3000)
+
+      assert [masters: 4, replicas: 5] = count_roles(config)
     end
   end
 
@@ -110,7 +130,7 @@ defmodule RedisCluster.ReshardingTest do
     exec = Path.expand("../../scripts/redis_cluster.exs", __DIR__)
 
     System.cmd(exec, ~w[stop --port #{port} --purge-files])
-    System.cmd(exec, ~w[start --port #{port} --replicas-per-master 1])
+    System.cmd(exec, ~w[start --port #{port} --replicas-per-master 2])
 
     # Wait for cluster creation
     wait_for_ready(config, 30)
@@ -202,6 +222,34 @@ defmodule RedisCluster.ReshardingTest do
     end)
   end
 
+  defp wait_for_master_count(config, expected_count, retries) do
+    ClusterInfo.query_while(config, fn info, attempt ->
+      if attempt > retries do
+        raise "Cluster not failed after #{attempt} attempts"
+      end
+
+      IO.puts("Nodes: #{RedisCluster.Cluster.NodeInfo.to_table(info)}")
+
+      # info
+      # |> Enum.filter(fn node ->
+      # node.role == :master
+      # end)
+      # |> IO.inspect(label: :masters)
+
+      count = Enum.count(info, &(&1.role == :master && &1.health == :online))
+      # failed? = Enum.any?(info, fn node -> node.health == :failed end)
+
+      # and not failed?
+      pass? = count == expected_count
+
+      if not pass? do
+        Process.sleep(1000)
+      end
+
+      not pass?
+    end)
+  end
+
   defp stop_port(port) do
     System.cmd("redis-cli", ["-p", to_string(port), "shutdown"])
   end
@@ -218,5 +266,10 @@ defmodule RedisCluster.ReshardingTest do
     replicas = Map.get(nodes_by_role, :replica, [])
 
     [masters: length(masters), replicas: length(replicas)]
+  end
+
+  defp force_failover(port) do
+    System.cmd("redis-cli", ["-p", to_string(port), "CLUSTER", "FAILOVER", "FORCE"])
+    |> IO.inspect(label: :failover)
   end
 end

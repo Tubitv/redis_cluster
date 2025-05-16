@@ -209,7 +209,7 @@ defmodule RedisCluster do
 
     cluster-enabled yes
     cluster-config-file nodes-#{port}.conf
-    cluster-node-timeout 5000
+    cluster-node-timeout 100
 
     dir #{Shell.tmp_dir()}redis/#{port}
 
