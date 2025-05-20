@@ -4,6 +4,8 @@ defmodule RedisCluster.Cluster.SlotParserTest do
   alias RedisCluster.Cluster.SlotParser
   alias RedisCluster.Cluster.NodeInfo
 
+  @moduletag :parser
+
   test "should parse the output of the CLUSTER SLOTS command without fragmented nodes" do
     result =
       basic_data()

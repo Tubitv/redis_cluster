@@ -53,7 +53,8 @@ defmodule RedisCluster.Pool do
           role :: :master | :replica,
           port :: non_neg_integer()
         ) :: pid()
-  def get_conn(config, host, port) do
+  def get_conn(config, host, port) when is_binary(host) and is_integer(port) do
+    require Logger
     # Ensure selecting the same connection based on the caller PID
     index = :erlang.phash2(self(), config.pool_size)
     key = {host, port, index}

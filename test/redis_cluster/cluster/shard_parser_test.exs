@@ -4,6 +4,8 @@ defmodule RedisCluster.Cluster.ShardParserTest do
   alias RedisCluster.Cluster.ShardParser
   alias RedisCluster.Cluster.NodeInfo
 
+  @moduletag :parser
+
   test "should parse the output of the CLUSTER SHARDS command without fragmented nodes" do
     result =
       basic_data()

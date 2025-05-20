@@ -1,5 +1,5 @@
 defmodule RedisCluster.Cluster.SlotParser do
-  @doc """
+  @moduledoc """
   Parses the output of the CLUSTER SLOTS command.
   """
 

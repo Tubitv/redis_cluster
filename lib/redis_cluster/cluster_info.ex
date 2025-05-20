@@ -12,7 +12,7 @@ defmodule RedisCluster.ClusterInfo do
   def query(config) do
     {:ok, conn} = Redix.start_link(host: config.host, port: config.port)
 
-    result = fetch_cluster_info(conn)
+    result = fetch_cluster_info(conn, config)
 
     # Close the connection
     Process.exit(conn, :normal)
@@ -29,14 +29,14 @@ defmodule RedisCluster.ClusterInfo do
   """
   def query_while(config, fun) when is_function(fun, 2) do
     {:ok, conn} = Redix.start_link(host: config.host, port: config.port)
-    query_while(conn, 1, fun)
+    query_while(conn, config, 1, fun)
   end
 
-  defp query_while(conn, attempt, fun) do
-    info = fetch_cluster_info(conn)
+  defp query_while(conn, config, attempt, fun) do
+    info = fetch_cluster_info(conn, config)
 
     if fun.(info, attempt) do
-      query_while(conn, attempt + 1, fun)
+      query_while(conn, config, attempt + 1, fun)
     else
       # Close the connection
       Process.exit(conn, :normal)
@@ -46,27 +46,58 @@ defmodule RedisCluster.ClusterInfo do
 
   ## Helpers
 
-  defp fetch_cluster_info(conn) do
-    cluster_shards(conn) || cluster_slots(conn) || []
+  defp fetch_cluster_info(conn, config) do
+    cluster_shards(conn, config) || cluster_slots(conn, config) || []
   end
 
-  defp cluster_shards(conn) do
+  defp cluster_shards(conn, config) do
     case Redix.command(conn, ~w[CLUSTER SHARDS]) do
       {:ok, data} ->
         RedisCluster.Cluster.ShardParser.parse(data)
 
+      {:error, %Redix.Error{message: "ERR This instance has cluster support disabled"}} ->
+        standalone_info(conn, config)
+
       {:error, _} ->
         nil
     end
   end
 
-  defp cluster_slots(conn) do
+  defp cluster_slots(conn, config) do
     case Redix.command(conn, ~w[CLUSTER SLOTS]) do
       {:ok, data} ->
         RedisCluster.Cluster.SlotParser.parse(data)
 
+      {:error, %Redix.Error{message: "ERR This instance has cluster support disabled"}} ->
+        standalone_info(conn, config)
+
       {:error, _} ->
         nil
     end
+  end
+
+  defp standalone_info(conn, config) do
+    case Redix.command(conn, ~w[ROLE]) do
+      {:ok, data} ->
+        data
+        |> RedisCluster.Cluster.RoleParser.parse(config)
+        |> fetch_remaining_replicas(config)
+
+      {:error, _} ->
+        nil
+    end
+  end
+
+  defp fetch_remaining_replicas({:full, master, replicas}, _config) do
+    [master | replicas]
+  end
+
+  defp fetch_remaining_replicas({:partial, master, _replicas}, config) do
+    conn = Redix.start_link(host: master.host, port: master.port)
+    result = standalone_info(conn, config)
+
+    Process.exit(conn, :normal)
+
+    result
   end
 end

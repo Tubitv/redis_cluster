@@ -1,5 +1,5 @@
 defmodule RedisCluster.Cluster.ShardParser do
-  @doc """
+  @moduledoc """
   Parses the output of the CLUSTER SHARDS command.
   """
 

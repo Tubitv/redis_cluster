@@ -41,6 +41,10 @@ defmodule CLI do
     {:start, parse_options(args)}
   end
 
+  defp parse_subcommand(["standalone" | args]) do
+    {:standalone, parse_options(args)}
+  end
+
   defp parse_subcommand(["stop" | args]) do
     {ports, args} = parse_ports(args, [])
     {:stop, ports, parse_options(args)}
@@ -112,6 +116,14 @@ defmodule CLI do
     RedisCluster.start_cluster(replicas_per_master, ports(opts), opts)
   end
 
+  defp run({:standalone, opts}) do
+    maybe_print_help(opts)
+    port = opts |> ports() |> Enum.at(0)
+    replicas_per_master = Keyword.get(opts, :replicas_per_master, 0)
+
+    RedisCluster.start_standalone(replicas_per_master, port, opts)
+  end
+
   defp run({:stop, [], opts}) do
     run({:stop, ports(opts), opts})
   end
@@ -136,6 +148,7 @@ defmodule CLI do
     Printer.print("""
     Usage:
       start_redis_cluster.exs start [options]
+      start_redis_cluster.exs single [options]
       start_redis_cluster.exs stop <port> <port> ... [options]
 
     Options:
@@ -188,6 +201,34 @@ defmodule RedisCluster do
     Printer.print("Waiting for Redis instances to start...")
     Process.sleep(5000)
     cluster(replicas_per_master, ports, opts)
+  end
+
+  def start_standalone(replicas_per_master, port, opts) do
+    Printer.print("Starting standalone master #{port}")
+    Shell.run(["redis-server", "--port", to_string(port), "--daemonize", "yes"], opts)
+
+    if replicas_per_master > 0 do
+      for n <- 1..replicas_per_master do
+        master_port = port
+        replica_port = master_port + n
+
+        Printer.print("Starting standalone replica #{replica_port}")
+
+        Shell.run(
+          [
+            "redis-server",
+            "--port",
+            to_string(replica_port),
+            "--replicaof",
+            "localhost",
+            to_string(master_port),
+            "--daemonize",
+            "yes"
+          ],
+          opts
+        )
+      end
+    end
   end
 
   def stop_instances(ports, opts) do
