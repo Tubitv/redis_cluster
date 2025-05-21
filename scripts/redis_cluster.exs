@@ -154,7 +154,7 @@ defmodule CLI do
     Printer.print("""
     Usage:
       start_redis_cluster.exs start [options]
-      start_redis_cluster.exs single [options]
+      start_redis_cluster.exs standalone [options]
       start_redis_cluster.exs stop <port> <port> ... [options]
 
     Options:
