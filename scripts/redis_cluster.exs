@@ -19,6 +19,12 @@ defmodule Shell do
     end
   end
 
+  def run(string, opts) when is_binary(string) do
+    string
+    |> String.split()
+    |> run(opts)
+  end
+
   def tmp_dir() do
     dir = System.tmp_dir()
 
@@ -180,8 +186,8 @@ defmodule CLI do
   defp purge_files(ports, opts) do
     for port <- ports do
       Printer.print("Purging files for Redis on port #{port}")
-      Shell.run(["rm", "-rf", "#{Shell.tmp_dir()}redis/#{port}"], opts)
-      Shell.run(["rm", "-rf", "#{Shell.tmp_dir()}redis/#{port}.log"], opts)
+      Shell.run("rm -rf #{Shell.tmp_dir()}redis/#{port}", opts)
+      Shell.run("rm -rf #{Shell.tmp_dir()}redis/#{port}.log", opts)
     end
   end
 
@@ -205,7 +211,8 @@ defmodule RedisCluster do
 
   def start_standalone(replicas_per_master, port, opts) do
     Printer.print("Starting standalone master #{port}")
-    Shell.run(["redis-server", "--port", to_string(port), "--daemonize", "yes"], opts)
+
+    Shell.run("redis-server --port #{port} --daemonize yes", opts)
 
     if replicas_per_master > 0 do
       for n <- 1..replicas_per_master do
@@ -215,16 +222,7 @@ defmodule RedisCluster do
         Printer.print("Starting standalone replica #{replica_port}")
 
         Shell.run(
-          [
-            "redis-server",
-            "--port",
-            to_string(replica_port),
-            "--replicaof",
-            "localhost",
-            to_string(master_port),
-            "--daemonize",
-            "yes"
-          ],
+          "redis-server --port #{replica_port} --replicaof localhost #{master_port} --daemonize yes",
           opts
         )
       end
@@ -234,7 +232,7 @@ defmodule RedisCluster do
   def stop_instances(ports, opts) do
     for port <- ports do
       Printer.print("Stopping Redis on port #{port}")
-      Shell.run(["redis-cli", "-p", "#{port}", "shutdown"], opts)
+      Shell.run("redis-cli -p #{port} shutdown", opts)
     end
   end
 
@@ -271,7 +269,7 @@ defmodule RedisCluster do
 
   defp create_root_dir(ports, opts) do
     for port <- ports do
-      Shell.run(["mkdir", "-p", "#{Shell.tmp_dir()}redis/#{port}"], opts)
+      Shell.run("mkdir -p #{Shell.tmp_dir()}redis/#{port}", opts)
     end
   end
 

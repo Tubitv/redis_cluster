@@ -12,6 +12,15 @@ defmodule RedisCluster.Cluster.RoleParser do
       Enum.map(replicas, fn [host, port, _offset] ->
         port = String.to_integer(port)
 
+        # Redix can't connect to IPv6 addresses.
+        # So transform "::1" to "localhost".
+        host =
+          if host == "::1" do
+            "localhost"
+          else
+            host
+          end
+
         %NodeInfo{
           id: "",
           slots: [
@@ -62,7 +71,7 @@ defmodule RedisCluster.Cluster.RoleParser do
       health: :online
     }
 
-    # We can't know all the replicas from a replica. 
+    # We can't know all the replicas from a replica.
     # Need to query the master for that.
     {:partial, master, [replica]}
   end
