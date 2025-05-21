@@ -54,8 +54,8 @@ defmodule RedisCluster.Cluster.RoleParserTest do
 
     replica = %RedisCluster.Cluster.NodeInfo{
       id: "",
-      slots: [{RedisCluster.HashSlots, 0, 16383, :replica, "::1", 6380}],
-      host: "::1",
+      slots: [{RedisCluster.HashSlots, 0, 16383, :replica, "localhost", 6380}],
+      host: "localhost",
       port: 6380,
       role: :replica,
       health: :online
