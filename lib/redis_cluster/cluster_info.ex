@@ -15,7 +15,7 @@ defmodule RedisCluster.ClusterInfo do
     result = fetch_cluster_info(conn, config)
 
     # Close the connection
-    Process.exit(conn, :normal)
+    GenServer.stop(conn)
 
     result
   end
@@ -39,7 +39,7 @@ defmodule RedisCluster.ClusterInfo do
       query_while(conn, config, attempt + 1, fun)
     else
       # Close the connection
-      Process.exit(conn, :normal)
+      GenServer.stop(conn)
       info
     end
   end
@@ -96,7 +96,7 @@ defmodule RedisCluster.ClusterInfo do
     conn = Redix.start_link(host: master.host, port: master.port)
     result = standalone_info(conn, config)
 
-    Process.exit(conn, :normal)
+    GenServer.stop(conn)
 
     result
   end
