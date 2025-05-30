@@ -687,7 +687,7 @@ Application.put_all_env(myapp: [{MyApp.Redis, [host: "localhost", port: 7000, po
 ```
 
 Then you create your own module that uses the `RedisCluster` module.
-The `@config` attribute is available for convenience.
+The `config()` function is available for convenience.
 
 ```elixir
 defmodule MyApp.Redis do
@@ -697,15 +697,15 @@ defmodule MyApp.Redis do
     pairs = Enum.flat_map(pairs, fn {k, v} -> [k, v] end)
     cmd = ["HSET", key | pairs]
 
-    RedisCluster.Cluster.command(@config, cmd, key: key)
+    RedisCluster.Cluster.command(config(), cmd, key: key)
   end
 
   def hkeys(key) do
-    RedisCluster.Cluster.command(@config, ["HKEYS", key], key: key)
+    RedisCluster.Cluster.command(config(), ["HKEYS", key], key: key)
   end
 
   def hget(key, field) do
-    RedisCluster.Cluster.command(@config, ["HGET", key, field], key: key)
+    RedisCluster.Cluster.command(config(), ["HGET", key, field], key: key)
   end
 
   def hdel(_key, []) do
@@ -713,7 +713,7 @@ defmodule MyApp.Redis do
   end
 
   def hdel(key, fields) do
-    RedisCluster.Cluster.command(@config, ["HDEL", key | fields], key: key)
+    RedisCluster.Cluster.command(config(), ["HDEL", key | fields], key: key)
   end
 end
 ```
