@@ -46,7 +46,7 @@ defmodule RedisClusterTest do
 
     assert :ok = TestRedis.set_many(pairs)
     assert ~w[value1 value2 value3] = TestRedis.get_many(Map.keys(pairs))
-    assert :ok = TestRedis.delete_many(Map.keys(pairs))
+    assert 3 = TestRedis.delete_many(Map.keys(pairs))
     assert [nil, nil, nil] = TestRedis.get_many(Map.keys(pairs))
   end
 end

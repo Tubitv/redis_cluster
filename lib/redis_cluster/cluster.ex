@@ -2,6 +2,7 @@ defmodule RedisCluster.Cluster do
   alias RedisCluster.Key
   alias RedisCluster.HashSlots
   alias RedisCluster.Configuration
+  alias RedisCluster.Telemetry
 
   use Supervisor
 
@@ -53,8 +54,17 @@ defmodule RedisCluster.Cluster do
     role = Keyword.get(opts, :role, :master)
     slot = Key.hash_slot(key, opts)
 
-    with_retry(config, role, slot, fn conn ->
-      Redix.command(conn, ["GET", key])
+    metadata = %{
+      config_name: config.name,
+      key: key,
+      role: role,
+      slot: slot
+    }
+
+    Telemetry.execute_command(["GET", key], metadata, fn ->
+      with_retry(config, role, slot, fn conn ->
+        Redix.command(conn, ["GET", key])
+      end)
     end)
   end
 
@@ -88,13 +98,24 @@ defmodule RedisCluster.Cluster do
         write_option(opts)
       ])
 
-    with_retry(config, role, slot, fn conn ->
-      Redix.command(conn, command)
+    metadata = %{
+      config_name: config.name,
+      key: key,
+      value: value,
+      role: role,
+      slot: slot,
+      opts: opts
+    }
+
+    Telemetry.execute_command(command, metadata, fn ->
+      with_retry(config, role, slot, fn conn ->
+        Redix.command(conn, command)
+      end)
+      |> case do
+        "OK" -> :ok
+        error -> error
+      end
     end)
-    |> case do
-      "OK" -> :ok
-      error -> error
-    end
   end
 
   @doc """
@@ -113,21 +134,30 @@ defmodule RedisCluster.Cluster do
     role = :master
     slot = Key.hash_slot(key, opts)
 
-    with_retry(config, role, slot, fn conn ->
-      Redix.command(conn, ["DEL", key])
+    metadata = %{
+      config_name: config.name,
+      key: key,
+      role: role,
+      slot: slot
+    }
+
+    Telemetry.execute_command(["DEL", key], metadata, fn ->
+      with_retry(config, role, slot, fn conn ->
+        Redix.command(conn, ["DEL", key])
+      end)
     end)
   end
 
   @doc """
-  **WARNING**: This command is not a one-to-one mapping to the 
+  **WARNING**: This command is not a one-to-one mapping to the
   [Redis `MSET` command](https://redis.io/docs/latest/commands/mset/).
 
-  All the keys in the list must hash to the same slot. 
-  This means they must hash to the exact value. 
+  All the keys in the list must hash to the same slot.
+  This means they must hash to the exact value.
   It doesn't matter if those values map to the same node.
   If any key doesn't hash to the same value, the `MSET` command will fail.
 
-  The only way to guarantee keys hash to the same slot is to use a 
+  The only way to guarantee keys hash to the same slot is to use a
   [hash tag](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/#hash-tags).
   Because of this, `:compute_hash_tag` is set to `true` by default.
 
@@ -143,10 +173,10 @@ defmodule RedisCluster.Cluster do
 
   Since this sends write commands, it will always be target master nodes.
 
-  This function cannot guarantee which value is set when a key is included 
+  This function cannot guarantee which value is set when a key is included
   multiple times in one call.
 
-  Commands are sent sequentially for simplicity. 
+  Commands are sent sequentially for simplicity.
   This means the function will be slower than sending commands in parallel.
 
   Options:
@@ -210,7 +240,7 @@ defmodule RedisCluster.Cluster do
   end
 
   @doc """
-  **WARNING**: This command is not a one-to-one mapping to the 
+  **WARNING**: This command is not a one-to-one mapping to the
   [Redis `MGET` command](https://redis.io/docs/latest/commands/mget/).
   See the `set_many/3` function for details why.
 
@@ -261,7 +291,7 @@ defmodule RedisCluster.Cluster do
   end
 
   @doc """
-  **WARNING**: This command is not a one-to-one mapping to the 
+  **WARNING**: This command is not a one-to-one mapping to the
   [Redis `DEL` command](https://redis.io/docs/latest/commands/del/).
   See the `set_many/3` function for details why.
 
@@ -317,7 +347,7 @@ defmodule RedisCluster.Cluster do
   end
 
   @doc """
-  Sends the given command to Redis. 
+  Sends the given command to Redis.
   This allows sending any command to Redis that isn't already implemented in this module.
 
   Options:
@@ -333,13 +363,22 @@ defmodule RedisCluster.Cluster do
     key = opts |> Keyword.fetch!(:key) |> to_string()
     slot = Key.hash_slot(key, opts)
 
-    with_retry(config, role, slot, fn conn ->
-      Redix.command(conn, command)
+    metadata = %{
+      config_name: config.name,
+      key: key,
+      role: role,
+      slot: slot
+    }
+
+    Telemetry.execute_command(command, metadata, fn ->
+      with_retry(config, role, slot, fn conn ->
+        Redix.command(conn, command)
+      end)
     end)
   end
 
   @doc """
-  Sends a sequence of commands to Redis. 
+  Sends a sequence of commands to Redis.
   This allows sending any command to Redis that isn't already implemented in this module.
   It sends the commands in one batch, reducing the number of round trips.
 
@@ -356,15 +395,24 @@ defmodule RedisCluster.Cluster do
     key = Keyword.fetch!(opts, :key)
     slot = Key.hash_slot(key, opts)
 
-    with_retry(config, role, slot, fn conn ->
-      Redix.pipeline(conn, commands)
+    metadata = %{
+      config_name: config.name,
+      key: key,
+      role: role,
+      slot: slot
+    }
+
+    Telemetry.execute_pipeline(commands, metadata, fn ->
+      with_retry(config, role, slot, fn conn ->
+        Redix.pipeline(conn, commands)
+      end)
     end)
   end
 
   @doc """
   Sends the given pipeline to all nodes in the cluster.
   May filter on a specific role if desired, defaults to all nodes.
-  Note that this sends a pipeline instead of a single command. 
+  Note that this sends a pipeline instead of a single command.
   You can issue as many commands as you like and get the raw results back.
   This is useful for debugging with commands like `DBSIZE` or `INFO MEMORY`.
 

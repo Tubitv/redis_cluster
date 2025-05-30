@@ -3,7 +3,7 @@ defmodule RedisCluster.MixProject do
 
   @homepage_url "https://tubitv.hexdocs.pm/redis_cluster"
   @source_url "https://github.com/Tubitv/redis-cluster"
-  @version "0.2.1"
+  @version "0.3.0"
 
   def project do
     [
@@ -60,6 +60,7 @@ defmodule RedisCluster.MixProject do
     [
       {:redix, "~> 1.5"},
       {:crc, "~> 0.10"},
+      {:telemetry, "~> 1.0"},
       {:ex_doc, "~> 0.34", only: [:dev], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false}
     ]

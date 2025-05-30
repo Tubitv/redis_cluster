@@ -274,7 +274,7 @@ defmodule RedisCluster.ClusterTest do
 
       assert :ok = Cluster.set_many(config, pairs)
       assert ~w[value1 value2 value3] = Cluster.get_many(config, Map.keys(pairs))
-      assert :ok = Cluster.delete_many(config, Map.keys(pairs))
+      assert 3 = Cluster.delete_many(config, Map.keys(pairs))
       assert [nil, nil, nil] = Cluster.get_many(config, Map.keys(pairs))
     end
 
@@ -318,7 +318,7 @@ defmodule RedisCluster.ClusterTest do
       assert ~w[value1 value2 value3] =
                Cluster.get_many(config, Map.keys(pairs), compute_hash_tag: true)
 
-      assert :ok = Cluster.delete_many(config, Map.keys(pairs), compute_hash_tag: true)
+      assert 3 = Cluster.delete_many(config, Map.keys(pairs), compute_hash_tag: true)
 
       assert [nil, nil, nil] =
                Cluster.get_many(config, Map.keys(pairs), compute_hash_tag: true)

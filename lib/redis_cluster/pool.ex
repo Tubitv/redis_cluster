@@ -7,6 +7,7 @@ defmodule RedisCluster.Pool do
 
   alias RedisCluster.Cluster.NodeInfo
   alias RedisCluster.Configuration
+  alias RedisCluster.Telemetry
 
   @doc false
   def start_link(config) do
@@ -60,6 +61,15 @@ defmodule RedisCluster.Pool do
     key = {host, port, index}
 
     [{pid, _value} | _] = Registry.lookup(config.registry, key)
+
+    # Emit telemetry event for connection acquisition
+    Telemetry.connection_acquired(%{
+      config_name: config.name,
+      host: host,
+      port: port,
+      index: index,
+      pid: pid
+    })
 
     pid
   end

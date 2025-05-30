@@ -7,6 +7,7 @@ defmodule RedisCluster.ShardDiscovery do
   alias RedisCluster.ClusterInfo
   alias RedisCluster.Configuration
   alias RedisCluster.HashSlots
+  alias RedisCluster.Telemetry
 
   def start_link(config) do
     GenServer.start_link(__MODULE__, config, name: config.shard_discovery)
@@ -32,6 +33,7 @@ defmodule RedisCluster.ShardDiscovery do
 
   @spec rediscover_shards(Configuration.t()) :: :ok
   def rediscover_shards(config) do
+    Telemetry.cluster_rediscovery(%{config_name: config.name})
     GenServer.call(config.shard_discovery, :discover_shards)
   end
 
@@ -40,23 +42,36 @@ defmodule RedisCluster.ShardDiscovery do
   defp discover_shards(config) do
     Logger.debug("Discovering shards for #{config.name}")
 
-    HashSlots.with_lock(config, fn ->
-      info = ClusterInfo.query(config)
+    metadata = %{
+      config_name: config.name
+    }
 
-      Logger.debug("Found cluster info\n#{NodeInfo.to_table(info)}")
+    Telemetry.execute_discovery(metadata, fn ->
+      HashSlots.with_lock(config, fn ->
+        info = ClusterInfo.query(config)
 
-      online_nodes =
-        Enum.filter(info, fn node_info ->
-          node_info.health in [:online, :unknown]
-        end)
+        Logger.debug("Found cluster info\n#{NodeInfo.to_table(info)}")
 
-      stop_pool(config)
-      create_pool(config, online_nodes)
+        online_nodes =
+          Enum.filter(info, fn node_info ->
+            node_info.health in [:online, :unknown]
+          end)
 
-      slots = Enum.flat_map(online_nodes, & &1.slots)
+        stop_pool(config)
+        create_pool(config, online_nodes)
 
-      HashSlots.delete(config)
-      HashSlots.add_slots(config, slots)
+        slots = Enum.flat_map(online_nodes, & &1.slots)
+
+        HashSlots.delete(config)
+        HashSlots.add_slots(config, slots)
+
+        # Return useful information for telemetry
+        %{
+          total_nodes: length(info),
+          online_nodes: length(online_nodes),
+          total_slots: length(slots)
+        }
+      end)
     end)
   end
 
