@@ -44,6 +44,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y redis
 
+      - name: Log Redis Instances
+        run: |
+          ps aux | grep redis
+
       - name: Install OTP and Elixir
         uses: erlef/setup-beam@v1
         with:
