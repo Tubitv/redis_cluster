@@ -51,7 +51,7 @@ defmodule RedisCluster.Pool do
 
   @spec get_conn(
           Configuration.t(),
-          role :: :master | :replica,
+          host :: binary(),
           port :: non_neg_integer()
         ) :: pid()
   def get_conn(config, host, port) when is_binary(host) and is_integer(port) do
