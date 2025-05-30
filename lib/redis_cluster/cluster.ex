@@ -44,13 +44,13 @@ defmodule RedisCluster.Cluster do
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `false`).
     * `:role` - The role to use when querying the cluster. Possible values are:
-      - `:master` - Query the master node.
-      - `:replica` - Query a replica node (default).
+      - `:master` - Query the master node (default).
+      - `:replica` - Query a replica node.
   """
   @spec get(Configuration.t(), key(), Keyword.t()) :: binary() | nil | {:error, any()}
   def get(config, key, opts \\ []) do
     key = to_string(key)
-    role = Keyword.get(opts, :role, :replica)
+    role = Keyword.get(opts, :role, :master)
     slot = Key.hash_slot(key, opts)
 
     with_retry(config, role, slot, fn conn ->
@@ -220,8 +220,8 @@ defmodule RedisCluster.Cluster do
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
     * `:role` - The role to use when querying the cluster. Possible values are:
-      - `:master` - Query the master node.
-      - `:replica` - Query a replica node (default).
+      - `:master` - Query the master node (default).
+      - `:replica` - Query a replica node.
   """
   def get_many(config, keys, opts \\ [])
 
@@ -236,7 +236,7 @@ defmodule RedisCluster.Cluster do
 
   def get_many(config, keys, opts) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
-    role = Keyword.get(opts, :role, :replica)
+    role = Keyword.get(opts, :role, :master)
 
     values_by_key =
       keys
@@ -302,11 +302,18 @@ defmodule RedisCluster.Cluster do
 
       Redix.pipeline(conn, cmds)
     end
-    |> Enum.reject(&match?({:ok, _}, &1))
-    |> case do
-      [] -> :ok
-      errors -> maybe_rediscover(config, errors)
-    end
+    |> Enum.reduce_while(0, fn
+      {:ok, results}, acc ->
+        {:cont, acc + Enum.sum(results)}
+
+      error = {:error, %Redix.Error{message: "MOVED" <> _}}, _acc ->
+        # If we get a MOVED error, we need to rediscover the cluster.
+        rediscover(config)
+        {:halt, error}
+
+      _error, acc ->
+        {:cont, acc}
+    end)
   end
 
   @doc """
@@ -428,7 +435,16 @@ defmodule RedisCluster.Cluster do
     config
     |> HashSlots.lookup_conn_info(slot, role)
     |> Enum.sort()
-    |> pick_consistent()
+    |> case do
+      [] ->
+        raise RedisCluster.Exception, message: "No nodes found for slot #{slot} with role #{role}"
+
+      [info] ->
+        info
+
+      list ->
+        pick_consistent(list)
+    end
   end
 
   defp pick_consistent([info]) do
