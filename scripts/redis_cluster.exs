@@ -264,6 +264,8 @@ defmodule RedisCluster do
     save 900 1
     save 300 10
     save 60 10000
+
+    daemonize yes
     """
   end
 
@@ -274,15 +276,17 @@ defmodule RedisCluster do
   end
 
   defp start_instances(ports, opts) do
-    for port <- ports do
+    tasks = for port <- ports do
       Printer.print("Starting Redis on port #{port}")
       path = "#{Shell.tmp_dir()}redis-#{port}.conf"
       File.write!(path, create_redis_conf(port))
 
-      Task.start(fn ->
+      Task.async(fn ->
         Shell.run(["redis-server", path], opts)
       end)
     end
+
+    Task.await_many(tasks, 10_000)
   end
 
   defp cluster(replicas_per_master, ports, opts) do

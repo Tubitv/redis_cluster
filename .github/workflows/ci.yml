@@ -44,6 +44,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y redis
 
+      - name: Stop default Redis service
+        run: |
+          sudo systemctl stop redis-server
+          sudo systemctl disable redis-server
+
       - name: Install OTP and Elixir
         uses: erlef/setup-beam@v1
         with:
