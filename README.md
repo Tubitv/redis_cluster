@@ -1,7 +1,7 @@
 # RedisCluster
 
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg?style=flat-square)](https://tubitv.hexdocs.pm/redis_cluster/)
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/Tubitv/redis-cluster/ci.yml?branch=main&style=flat-square)](https://github.com/Tubitv/redis-cluster/actions/workflows/ci.yml)
+[![CI](https://github.com/Tubitv/redis-cluster/actions/workflows/ci.yml/badge.svg)](https://github.com/Tubitv/redis-cluster/actions/workflows/ci.yml)
 
 [![Run in Livebook](https://livebook.dev/badge/v1/black.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2FTubitv%2Fredis-cluster%2Frefs%2Fheads%2Fmain%2Fnotebooks%2Fredis-cluster-demo.livemd%3Ftoken%3DGHSAT0AAAAAADEWZS4JNYBLQD2LCCUKRMYW2B54HCA)
 
