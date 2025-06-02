@@ -22,15 +22,15 @@ jobs:
             otp: 27.x
             os: 'ubuntu-latest'
             dialyzer: true
-          # - elixir: 1.17.x
-            # otp: 27.x
-            # os: 'ubuntu-latest'
-          # - elixir: 1.17.x
-            # otp: 26.x
-            # os: 'ubuntu-latest'
-          # - elixir: 1.17.x
-            # otp: 25.x
-            # os: 'ubuntu-latest'
+          - elixir: 1.17.x
+            otp: 27.x
+            os: 'ubuntu-latest'
+          - elixir: 1.17.x
+            otp: 26.x
+            os: 'ubuntu-latest'
+          - elixir: 1.17.x
+            otp: 25.x
+            os: 'ubuntu-latest'
 
     env:
       GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
@@ -57,10 +57,6 @@ jobs:
 
       - name: Start Redis
         run: ./scripts/redis_cluster.exs start --port 6379 --replicas-per-master 3
-
-      - name: Log Redis Instances
-        run: |
-          ps aux | grep redis
 
       - name: Cache deps
         uses: actions/cache@v4
