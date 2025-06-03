@@ -56,7 +56,7 @@ Add `redis_cluster` to your list of dependencies in `mix.exs`:
 ```elixir
 defp deps do
   [
-    {:redis_cluster, "~> 0.2.0", organization: "tubitv"},
+    {:redis_cluster, "~> 0.3.1", organization: "tubitv"},
   ]
 end
 ```
@@ -91,7 +91,7 @@ Ideally the host should be a "configuration endpoint" as AWS ElastiCache calls i
 
 ### Quick and Easy Config
 
-For simpler cases, such as with testing and Livebook, you can inline your config. 
+For simpler cases, such as with testing and Livebook, you can inline your config.
 
 ```elixir
 defmodule MyApp.Redis do
