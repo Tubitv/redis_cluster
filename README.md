@@ -1,9 +1,9 @@
 # RedisCluster
 
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg?style=flat-square)](https://tubitv.hexdocs.pm/redis_cluster/)
-[![CI](https://github.com/Tubitv/redis-cluster/actions/workflows/ci.yml/badge.svg)](https://github.com/Tubitv/redis-cluster/actions/workflows/ci.yml)
+[![CI](https://github.com/Tubitv/redis_cluster/actions/workflows/ci.yml/badge.svg)](https://github.com/Tubitv/redis-cluster/actions/workflows/ci.yml)
 
-[![Run in Livebook](https://livebook.dev/badge/v1/black.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2FTubitv%2Fredis-cluster%2Frefs%2Fheads%2Fmain%2Fnotebooks%2Fredis-cluster-demo.livemd%3Ftoken%3DGHSAT0AAAAAADEWZS4JNYBLQD2LCCUKRMYW2B54HCA)
+[![Run in Livebook](https://livebook.dev/badge/v1/black.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2FTubitv%2Fredis_cluster%2Frefs%2Fheads%2Fmain%2Fnotebooks%2Fredis-cluster-demo.livemd%3Ftoken%3DGHSAT0AAAAAADEWZS4ILZTBWFZNGQFVLXDY2B7PDSQ)
 
 `RedisCluster` is an Elixir library that extends the popular [Redix](https://hex.pm/packages/redix) library to provide seamless support for [Redis Cluster](https://redis.io/topics/cluster-spec). It handles cluster topology discovery, request routing to the correct nodes, and connection pooling, allowing you to interact with a Redis Cluster with the simplicity of a single Redis instance.
 
@@ -45,9 +45,9 @@ Conveniently provides basic get/set across many nodes.
 
 ## Demo
 
-To try out `RedisCluster` check out the [demo notebook](notesbooks/redis-cluster-demo.livemd).
+To try out `RedisCluster` check out the [demo notebook](notesbooks/redis_cluster-demo.livemd).
 
-[![Run in Livebook](https://livebook.dev/badge/v1/black.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2FTubitv%2Fredis-cluster%2Frefs%2Fheads%2Fmain%2Fnotebooks%2Fredis-cluster-demo.livemd%3Ftoken%3DGHSAT0AAAAAADEWZS4JNYBLQD2LCCUKRMYW2B54HCA)
+[![Run in Livebook](https://livebook.dev/badge/v1/black.svg)](https://livebook.dev/run?url=https%3A%2F%2Fraw.githubusercontent.com%2FTubitv%2Fredis_cluster%2Frefs%2Fheads%2Fmain%2Fnotebooks%2Fredis-cluster-demo.livemd%3Ftoken%3DGHSAT0AAAAAADEWZS4ILZTBWFZNGQFVLXDY2B7PDSQ)
 
 ## Installation
 
