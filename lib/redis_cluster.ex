@@ -131,6 +131,7 @@ defmodule RedisCluster do
         case result do
           {:ok, response} -> response
           {:error, error} -> raise error
+          other -> other
         end
       end
     end
