@@ -56,7 +56,7 @@ defmodule RedisCluster.Telemetry do
   @spec span(
           event :: [atom()],
           metadata :: map(),
-          fun :: (() -> result)
+          fun :: (-> result)
         ) :: result
         when result: any()
   def span(event, metadata, fun) do
@@ -85,6 +85,7 @@ defmodule RedisCluster.Telemetry do
     rescue
       exception ->
         duration = System.monotonic_time() - start_time
+
         exception_metadata =
           metadata
           |> Map.put(:kind, :error)
@@ -101,6 +102,7 @@ defmodule RedisCluster.Telemetry do
     catch
       kind, reason ->
         duration = System.monotonic_time() - start_time
+
         exception_metadata =
           metadata
           |> Map.put(:kind, kind)
@@ -123,7 +125,7 @@ defmodule RedisCluster.Telemetry do
   @spec execute_command(
           command :: [String.t()],
           metadata :: map(),
-          fun :: (() -> result)
+          fun :: (-> result)
         ) :: result
         when result: any()
   def execute_command(command, metadata, fun) do
@@ -144,7 +146,7 @@ defmodule RedisCluster.Telemetry do
   @spec execute_pipeline(
           commands :: [[String.t()]],
           metadata :: map(),
-          fun :: (() -> result)
+          fun :: (-> result)
         ) :: result
         when result: any()
   def execute_pipeline(commands, metadata, fun) do
@@ -164,7 +166,7 @@ defmodule RedisCluster.Telemetry do
   """
   @spec execute_discovery(
           metadata :: map(),
-          fun :: (() -> result)
+          fun :: (-> result)
         ) :: result
         when result: any()
   def execute_discovery(metadata, fun) do

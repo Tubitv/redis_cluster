@@ -27,6 +27,7 @@ defmodule RedisCluster.TelemetryTest do
 
       # Execute a command with telemetry
       command = ["GET", "test_key"]
+
       metadata = %{
         config_name: :test_config,
         key: "test_key",
@@ -34,24 +35,29 @@ defmodule RedisCluster.TelemetryTest do
         slot: 1234
       }
 
-      result = Telemetry.execute_command(command, metadata, fn ->
-        # Simulate some work
-        Process.sleep(10)
-        "test_value"
-      end)
+      result =
+        Telemetry.execute_command(command, metadata, fn ->
+          # Simulate some work
+          Process.sleep(10)
+          "test_value"
+        end)
 
       # Verify the result
       assert result == "test_value"
 
       # Verify start event was emitted
-      assert_receive {:telemetry_event, [:redis_cluster, :command, :start], start_measurements, start_metadata}
+      assert_receive {:telemetry_event, [:redis_cluster, :command, :start], start_measurements,
+                      start_metadata}
+
       assert Map.has_key?(start_measurements, :system_time)
       assert start_metadata.config_name == :test_config
       assert start_metadata.command_name == "get"
       assert start_metadata.command_length == 2
 
       # Verify stop event was emitted
-      assert_receive {:telemetry_event, [:redis_cluster, :command, :stop], stop_measurements, stop_metadata}
+      assert_receive {:telemetry_event, [:redis_cluster, :command, :stop], stop_measurements,
+                      stop_metadata}
+
       assert Map.has_key?(stop_measurements, :duration)
       assert stop_measurements.duration > 0
       assert stop_metadata.config_name == :test_config
@@ -74,6 +80,7 @@ defmodule RedisCluster.TelemetryTest do
 
       # Execute a command that raises an exception
       command = ["SET", "test_key", "value"]
+
       metadata = %{
         config_name: :test_config,
         key: "test_key",
@@ -88,7 +95,9 @@ defmodule RedisCluster.TelemetryTest do
       end
 
       # Verify exception event was emitted
-      assert_receive {:telemetry_event, [:redis_cluster, :command, :exception], measurements, exception_metadata}
+      assert_receive {:telemetry_event, [:redis_cluster, :command, :exception], measurements,
+                      exception_metadata}
+
       assert Map.has_key?(measurements, :duration)
       assert exception_metadata.config_name == :test_config
       assert exception_metadata.kind == :error
@@ -111,6 +120,7 @@ defmodule RedisCluster.TelemetryTest do
 
       # Execute a pipeline with telemetry
       commands = [["GET", "key1"], ["SET", "key2", "value"], ["DEL", "key3"]]
+
       metadata = %{
         config_name: :test_config,
         key: "key1",
@@ -118,15 +128,18 @@ defmodule RedisCluster.TelemetryTest do
         slot: 1234
       }
 
-      result = Telemetry.execute_pipeline(commands, metadata, fn ->
-        ["value1", "OK", 1]
-      end)
+      result =
+        Telemetry.execute_pipeline(commands, metadata, fn ->
+          ["value1", "OK", 1]
+        end)
 
       # Verify the result
       assert result == ["value1", "OK", 1]
 
       # Verify pipeline event was emitted
-      assert_receive {:telemetry_event, [:redis_cluster, :pipeline, :stop], measurements, pipeline_metadata}
+      assert_receive {:telemetry_event, [:redis_cluster, :pipeline, :stop], measurements,
+                      pipeline_metadata}
+
       assert Map.has_key?(measurements, :duration)
       assert pipeline_metadata.config_name == :test_config
       assert pipeline_metadata.pipeline_size == 3
@@ -151,7 +164,9 @@ defmodule RedisCluster.TelemetryTest do
       Telemetry.cluster_rediscovery(%{config_name: :test_config})
 
       # Verify rediscovery event was emitted
-      assert_receive {:telemetry_event, [:redis_cluster, :cluster, :rediscovery], measurements, metadata}
+      assert_receive {:telemetry_event, [:redis_cluster, :cluster, :rediscovery], measurements,
+                      metadata}
+
       assert measurements.count == 1
       assert metadata.config_name == :test_config
       assert Map.has_key?(metadata, :timestamp)
@@ -181,7 +196,9 @@ defmodule RedisCluster.TelemetryTest do
       })
 
       # Verify connection event was emitted
-      assert_receive {:telemetry_event, [:redis_cluster, :connection, :acquired], measurements, metadata}
+      assert_receive {:telemetry_event, [:redis_cluster, :connection, :acquired], measurements,
+                      metadata}
+
       assert measurements.count == 1
       assert metadata.config_name == :test_config
       assert metadata.host == "localhost"
