@@ -212,6 +212,7 @@ defmodule RedisCluster.Cluster do
     opts = Keyword.merge([compute_hash_tag: true], opts)
     role = :master
 
+    # Create a map of conn => [{key, value}, ...]
     pairs_by_conn =
       pairs
       |> Map.new(fn {k, v} -> {to_string(k), v} end)
@@ -221,6 +222,7 @@ defmodule RedisCluster.Cluster do
       end)
 
     for {conn, pairs} <- pairs_by_conn do
+      # Create a list of SET commands with the requested options.
       cmds =
         Enum.map(pairs, fn {k, v} ->
           List.flatten([
@@ -253,6 +255,7 @@ defmodule RedisCluster.Cluster do
       - `:master` - Query the master node (default).
       - `:replica` - Query a replica node.
   """
+  @spec get_many(Configuration.t(), [key()], Keyword.t()) :: [String.t() | nil]
   def get_many(config, keys, opts \\ [])
 
   def get_many(_config, [], _opts) do
@@ -267,21 +270,22 @@ defmodule RedisCluster.Cluster do
   def get_many(config, keys, opts) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
     role = Keyword.get(opts, :role, :master)
+    keys = Enum.map(keys, &to_string/1)
 
     values_by_key =
       keys
-      |> MapSet.new(&to_string/1)
+      |> Enum.uniq()
       |> Enum.group_by(&Key.hash_slot(&1, opts))
-      |> Enum.flat_map(fn {slot, keys} ->
+      |> Enum.flat_map(fn {slot, key_batch} ->
         values =
           with_retry(config, role, slot, fn conn ->
-            case Redix.command(conn, ["MGET" | keys]) do
-              {:error, _} -> Enum.map(keys, fn _ -> nil end)
+            case Redix.command(conn, ["MGET" | key_batch]) do
+              {:error, _} -> Enum.map(key_batch, fn _ -> nil end)
               values -> values
             end
           end)
 
-        Enum.zip(keys, values)
+        Enum.zip(key_batch, values)
       end)
 
     # Ensures the values are returned in the same order they were requested.
@@ -509,10 +513,13 @@ defmodule RedisCluster.Cluster do
   end
 
   defp maybe_rediscover(config, errors) do
-    if Enum.any?(errors, fn
-         {:error, %Redix.Error{message: "MOVED" <> _}} -> true
-         _ -> false
-       end) do
+    any_moved? =
+      Enum.any?(errors, fn
+        {:error, %Redix.Error{message: "MOVED" <> _}} -> true
+        _ -> false
+      end)
+
+    if any_moved? do
       rediscover(config)
     end
 
