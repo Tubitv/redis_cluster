@@ -6,6 +6,8 @@ defmodule RedisCluster.Cluster do
 
   use Supervisor
 
+  require Logger
+
   @type key() :: binary() | atom() | number()
   @type value() :: binary() | atom() | number()
   @type pairs() :: [{key(), value()}] | %{key() => value()}
@@ -489,7 +491,7 @@ defmodule RedisCluster.Cluster do
     |> Enum.sort()
     |> case do
       [] ->
-        raise RedisCluster.Exception, message: "No nodes found for slot #{slot} with role #{role}"
+        lookup_fallback(config, slot, role)
 
       [info] ->
         info
@@ -497,6 +499,16 @@ defmodule RedisCluster.Cluster do
       list ->
         pick_consistent(list)
     end
+  end
+
+  def lookup_fallback(_config, slot, role = :master) do
+    raise RedisCluster.Exception, message: "No nodes found for slot #{slot} with role #{role}"
+  end
+
+  def lookup_fallback(config, slot, role) do
+    # If requesting a replica (or any), fallback to master.
+    Logger.warning("No nodes found for slot #{slot} with role #{role}, falling back to master.")
+    lookup(config, slot, :master)
   end
 
   defp pick_consistent([info]) do
