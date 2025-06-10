@@ -56,7 +56,7 @@ Add `redis_cluster` to your list of dependencies in `mix.exs`:
 ```elixir
 defp deps do
   [
-    {:redis_cluster, "~> 0.3.1", organization: "tubitv"},
+    {:redis_cluster, "~> 0.3.2", organization: "tubitv"},
   ]
 end
 ```
