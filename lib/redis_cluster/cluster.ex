@@ -64,7 +64,7 @@ defmodule RedisCluster.Cluster do
     }
 
     Telemetry.execute_command(["GET", key], metadata, fn ->
-      with_retry(config, role, slot, fn conn ->
+      with_retry(config, role, slot, key, fn conn ->
         Redix.command(conn, ["GET", key])
       end)
     end)
@@ -110,7 +110,7 @@ defmodule RedisCluster.Cluster do
     }
 
     Telemetry.execute_command(command, metadata, fn ->
-      with_retry(config, role, slot, fn conn ->
+      with_retry(config, role, slot, key, fn conn ->
         Redix.command(conn, command)
       end)
       |> case do
@@ -144,7 +144,7 @@ defmodule RedisCluster.Cluster do
     }
 
     Telemetry.execute_command(["DEL", key], metadata, fn ->
-      with_retry(config, role, slot, fn conn ->
+      with_retry(config, role, slot, key, fn conn ->
         Redix.command(conn, ["DEL", key])
       end)
     end)
@@ -280,7 +280,7 @@ defmodule RedisCluster.Cluster do
       |> Enum.group_by(&Key.hash_slot(&1, opts))
       |> Enum.flat_map(fn {slot, key_batch} ->
         values =
-          with_retry(config, role, slot, fn conn ->
+          with_retry(config, role, slot, key_batch, fn conn ->
             case Redix.command(conn, ["MGET" | key_batch]) do
               {:error, _} -> Enum.map(key_batch, fn _ -> nil end)
               values -> values
@@ -342,8 +342,18 @@ defmodule RedisCluster.Cluster do
       {:ok, results}, acc ->
         {:cont, acc + Enum.sum(results)}
 
-      error = {:error, %Redix.Error{message: "MOVED" <> _}}, _acc ->
+      error = {:error, %Redix.Error{message: "MOVED" <> rest}}, _acc ->
         # If we get a MOVED error, we need to rediscover the cluster.
+        [slot, host] = String.split(rest, " ", parts: 2, trim: true)
+
+        Logger.warning("Received MOVED error with delete_many, rediscovering cluster.",
+          host: host,
+          slot: slot,
+          role: role,
+          all_keys: keys,
+          config_name: config.name
+        )
+
         rediscover(config)
         {:halt, error}
 
@@ -377,7 +387,7 @@ defmodule RedisCluster.Cluster do
     }
 
     Telemetry.execute_command(command, metadata, fn ->
-      with_retry(config, role, slot, fn conn ->
+      with_retry(config, role, slot, key, fn conn ->
         Redix.command(conn, command)
       end)
     end)
@@ -409,7 +419,7 @@ defmodule RedisCluster.Cluster do
     }
 
     Telemetry.execute_pipeline(commands, metadata, fn ->
-      with_retry(config, role, slot, fn conn ->
+      with_retry(config, role, slot, key, fn conn ->
         Redix.pipeline(conn, commands)
       end)
     end)
@@ -461,7 +471,7 @@ defmodule RedisCluster.Cluster do
     end
   end
 
-  defp with_retry(config, role, slot, fun) do
+  defp with_retry(config, role, slot, key_or_keys, fun) do
     conn = get_conn(config, slot, role)
 
     case fun.(conn) do
@@ -471,6 +481,13 @@ defmodule RedisCluster.Cluster do
       # The key wasn't on the expected node.
       # Try rediscovering the cluster.
       {:error, %Redix.Error{message: "MOVED" <> _}} ->
+        Logger.warning("Received MOVED error, rediscovering cluster.",
+          slot: slot,
+          role: role,
+          keys: List.wrap(key_or_keys),
+          config_name: config.name
+        )
+
         rediscover(config)
         conn = get_conn(config, slot, role)
         fun.(conn)
@@ -507,7 +524,10 @@ defmodule RedisCluster.Cluster do
 
   def lookup_fallback(config, slot, role) do
     # If requesting a replica (or any), fallback to master.
-    Logger.warning("No nodes found for slot #{slot} with role #{role}, falling back to master.")
+    Logger.warning("No nodes found for slot #{slot} with role #{role}, falling back to master.",
+      config_name: config.name
+    )
+
     lookup(config, slot, :master)
   end
 
@@ -525,13 +545,17 @@ defmodule RedisCluster.Cluster do
   end
 
   defp maybe_rediscover(config, errors) do
-    any_moved? =
-      Enum.any?(errors, fn
-        {:error, %Redix.Error{message: "MOVED" <> _}} -> true
-        _ -> false
-      end)
+    info =
+      for %Redix.Error{message: "MOVED" <> rest} <- errors do
+        String.split(rest, " ", parts: 2, trim: true)
+      end
 
-    if any_moved? do
+    if info != [] do
+      Logger.warning("Some commands failed, rediscovering cluster.",
+        info: info,
+        config_name: config.name
+      )
+
       rediscover(config)
     end
 
