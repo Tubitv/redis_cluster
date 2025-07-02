@@ -55,20 +55,21 @@ defmodule RedisClusterTest do
       String.trim_trailing("""
       Slot Start | Slot End | Host      | Port | Role   
       ---------- | -------- | --------- | ---- | -------
-      0          | 5460     | 127.0.0.1 | 6379 | master 
-      0          | 5460     | 127.0.0.1 | 6385 | replica
-      0          | 5460     | 127.0.0.1 | 6387 | replica
-      0          | 5460     | 127.0.0.1 | 6388 | replica
-      5461       | 10922    | 127.0.0.1 | 6380 | master 
-      5461       | 10922    | 127.0.0.1 | 6382 | replica
-      5461       | 10922    | 127.0.0.1 | 6383 | replica
-      5461       | 10922    | 127.0.0.1 | 6384 | replica
-      10923      | 16383    | 127.0.0.1 | 6381 | master 
-      10923      | 16383    | 127.0.0.1 | 6386 | replica
-      10923      | 16383    | 127.0.0.1 | 6389 | replica
-      10923      | 16383    | 127.0.0.1 | 6390 | replica
+      0          | 5460     | 127.0.0.1 | .... | master 
+      0          | 5460     | 127.0.0.1 | .... | replica
+      0          | 5460     | 127.0.0.1 | .... | replica
+      0          | 5460     | 127.0.0.1 | .... | replica
+      5461       | 10922    | 127.0.0.1 | .... | master 
+      5461       | 10922    | 127.0.0.1 | .... | replica
+      5461       | 10922    | 127.0.0.1 | .... | replica
+      5461       | 10922    | 127.0.0.1 | .... | replica
+      10923      | 16383    | 127.0.0.1 | .... | master 
+      10923      | 16383    | 127.0.0.1 | .... | replica
+      10923      | 16383    | 127.0.0.1 | .... | replica
+      10923      | 16383    | 127.0.0.1 | .... | replica
       """)
 
-    assert expected == TestRedis.slot_table()
+    # Check the table ignoring ports since they can vary.
+    assert expected == Regex.replace(~r/\b63\d\d\b/, TestRedis.slot_table(), "....")
   end
 end
