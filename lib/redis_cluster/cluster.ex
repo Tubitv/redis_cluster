@@ -130,7 +130,7 @@ defmodule RedisCluster.Cluster do
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `false`).
   """
-  @spec delete(Configuration.t(), key(), Keyword.t()) :: integer()
+  @spec delete(Configuration.t(), key(), Keyword.t()) :: integer() | {:error, any()}
   def delete(config, key, opts \\ []) do
     key = to_string(key)
     role = :master
@@ -287,7 +287,10 @@ defmodule RedisCluster.Cluster do
             end
           end)
 
-        Enum.zip(key_batch, values)
+        case values do
+          {:error, _} -> []
+          values -> Enum.zip(key_batch, values)
+        end
       end)
 
     # Ensures the values are returned in the same order they were requested.
@@ -310,7 +313,7 @@ defmodule RedisCluster.Cluster do
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
   """
-  @spec delete_many(Configuration.t(), [key()], Keyword.t()) :: integer()
+  @spec delete_many(Configuration.t(), [key()], Keyword.t()) :: integer() | {:error, any()}
   def delete_many(config, keys, opts \\ [])
 
   def delete_many(_config, [], _opts) do
@@ -351,7 +354,8 @@ defmodule RedisCluster.Cluster do
           slot: slot,
           role: role,
           all_keys: keys,
-          config_name: config.name
+          config_name: config.name,
+          table: HashSlots.all_slots_as_table(config)
         )
 
         rediscover(config)
@@ -373,7 +377,7 @@ defmodule RedisCluster.Cluster do
       - `:master` - Query the master node (master).
       - `:replica` - Query a replica node.
   """
-  @spec command(Configuration.t(), command(), Keyword.t()) :: term()
+  @spec command(Configuration.t(), command(), Keyword.t()) :: term() | {:error, any()}
   def command(config, command, opts) do
     role = Keyword.get(opts, :role, :master)
     key = opts |> Keyword.fetch!(:key) |> to_string()
@@ -405,7 +409,7 @@ defmodule RedisCluster.Cluster do
       - `:master` - Query the master node (master).
       - `:replica` - Query a replica node.
   """
-  @spec pipeline(Configuration.t(), pipeline(), Keyword.t()) :: [term()]
+  @spec pipeline(Configuration.t(), pipeline(), Keyword.t()) :: [term()] | {:error, any()}
   def pipeline(config, commands, opts) do
     role = Keyword.get(opts, :role, :master)
     key = Keyword.fetch!(opts, :key)
@@ -438,6 +442,8 @@ defmodule RedisCluster.Cluster do
       - `:master` - Query the master nodes.
       - `:replica` - Query the replica nodes.
   """
+  @spec broadcast(Configuration.t(), pipeline(), Keyword.t()) ::
+          [{host :: String.t(), port :: non_neg_integer(), result :: any()}]
   def broadcast(config, commands, opts \\ []) do
     role_selector = Keyword.get(opts, :role, :any)
 
@@ -471,6 +477,13 @@ defmodule RedisCluster.Cluster do
     end
   end
 
+  @spec with_retry(
+          Configuration.t(),
+          :master | :replica,
+          slot :: integer(),
+          key() | [key()],
+          fun :: (pid() -> term())
+        ) :: term() | {:error, any()}
   defp with_retry(config, role, slot, key_or_keys, fun) do
     conn = get_conn(config, slot, role)
 
@@ -480,19 +493,32 @@ defmodule RedisCluster.Cluster do
 
       # The key wasn't on the expected node.
       # Try rediscovering the cluster.
-      {:error, %Redix.Error{message: "MOVED" <> _}} ->
+      {:error, %Redix.Error{message: "MOVED" <> rest}} ->
+        [expected_slot, expected_host] = String.split(rest, " ", parts: 2, trim: true)
+
         Logger.warning("Received MOVED error, rediscovering cluster.",
           slot: slot,
           role: role,
+          expected_slot: expected_slot,
+          expected_host: expected_host,
           keys: List.wrap(key_or_keys),
-          config_name: config.name
+          config_name: config.name,
+          table: HashSlots.all_slots_as_table(config)
         )
 
         rediscover(config)
         conn = get_conn(config, slot, role)
         fun.(conn)
 
-      error = {:error, _} ->
+      error = {:error, reason} ->
+        Logger.warning("Failed to query Redis",
+          slot: slot,
+          role: role,
+          keys: List.wrap(key_or_keys),
+          config_name: config.name,
+          reason: reason
+        )
+
         error
     end
   end
@@ -553,7 +579,8 @@ defmodule RedisCluster.Cluster do
     if info != [] do
       Logger.warning("Some commands failed, rediscovering cluster.",
         info: info,
-        config_name: config.name
+        config_name: config.name,
+        table: HashSlots.all_slots_as_table(config)
       )
 
       rediscover(config)

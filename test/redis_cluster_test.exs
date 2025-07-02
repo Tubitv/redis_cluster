@@ -49,4 +49,26 @@ defmodule RedisClusterTest do
     assert 3 = TestRedis.delete_many(Map.keys(pairs))
     assert [nil, nil, nil] = TestRedis.get_many(Map.keys(pairs))
   end
+
+  test "should show tabular slot data" do
+    expected =
+      String.trim_trailing("""
+      Slot Start | Slot End | Host      | Port | Role   
+      ---------- | -------- | --------- | ---- | -------
+      0          | 5460     | 127.0.0.1 | 6379 | master 
+      0          | 5460     | 127.0.0.1 | 6385 | replica
+      0          | 5460     | 127.0.0.1 | 6387 | replica
+      0          | 5460     | 127.0.0.1 | 6388 | replica
+      5461       | 10922    | 127.0.0.1 | 6380 | master 
+      5461       | 10922    | 127.0.0.1 | 6382 | replica
+      5461       | 10922    | 127.0.0.1 | 6383 | replica
+      5461       | 10922    | 127.0.0.1 | 6384 | replica
+      10923      | 16383    | 127.0.0.1 | 6381 | master 
+      10923      | 16383    | 127.0.0.1 | 6386 | replica
+      10923      | 16383    | 127.0.0.1 | 6389 | replica
+      10923      | 16383    | 127.0.0.1 | 6390 | replica
+      """)
+
+    assert expected == TestRedis.slot_table()
+  end
 end

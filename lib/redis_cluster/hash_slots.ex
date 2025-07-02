@@ -1,6 +1,7 @@
 defmodule RedisCluster.HashSlots do
   alias RedisCluster.Configuration
   alias RedisCluster.Lock
+  alias RedisCluster.Table
 
   @ets_key __MODULE__
 
@@ -57,6 +58,18 @@ defmodule RedisCluster.HashSlots do
   @spec all_slots(Configuration.t()) :: [slot_id()]
   def all_slots(%Configuration{name: name}) do
     :ets.tab2list(name)
+  end
+
+  @spec all_slots_as_table(Configuration.t()) :: String.t()
+  def all_slots_as_table(config) do
+    rows =
+      for {@ets_key, start, stop, role, host, port} <- all_slots(config) do
+        [start, stop, host, port, role]
+      end
+
+    rows
+    |> Enum.sort()
+    |> Table.rows_to_string(["Slot Start", "Slot End", "Host", "Port", "Role"])
   end
 
   @spec lookup(Configuration.t(), hash_slot(), :master | :replica | :any, Keyword.t()) ::

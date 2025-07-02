@@ -22,9 +22,13 @@ defmodule RedisCluster.Table do
 
       Name  | Age | Occupation
       ----- | --- | ----------
-      Alice | 30  | Engineer  
-      Bob   | 25  | Designer 
+      Alice | 30  | Engineer
+      Bob   | 25  | Designer
   """
+  @spec rows_to_string(
+          rows :: [[term()]] | [{term()}],
+          headers :: [binary()]
+        ) :: binary()
   def rows_to_string(rows, headers) do
     rows
     |> rows_to_iodata(headers)
@@ -35,6 +39,10 @@ defmodule RedisCluster.Table do
   Like `rows_to_string/2`, but returns `iodata` instead of a binary.
   This is more efficient if you are simply logging the output or writing it to a file.
   """
+  @spec rows_to_iodata(
+          rows :: [[term()]] | [{term()}],
+          headers :: [binary()]
+        ) :: [iodata()]
   def rows_to_iodata(rows, headers) do
     rows
     |> rows_to_columns()

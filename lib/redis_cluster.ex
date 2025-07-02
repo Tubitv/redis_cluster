@@ -127,6 +127,10 @@ defmodule RedisCluster do
         |> bang!()
       end
 
+      def slot_table() do
+        RedisCluster.HashSlots.all_slots_as_table(config())
+      end
+
       defp bang!(result) do
         case result do
           {:ok, response} -> response
