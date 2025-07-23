@@ -1,12 +1,16 @@
 defmodule RedisCluster.Cluster.RoleParser do
   @moduledoc """
-  Parses the output of the ROLE command.
+  Parses the output of the [ROLE command](https://redis.io/docs/latest/commands/role/).
+  This is used when using a standalone Redis instance instead of a cluster.
   """
 
   @max_slot_number 16_383
 
   alias RedisCluster.Cluster.NodeInfo
 
+  @doc """
+  Parses the output of the ROLE command.
+  """
   def parse(["master", _offset, replicas], config) do
     replicas =
       Enum.map(replicas, fn [host, port, _offset] ->

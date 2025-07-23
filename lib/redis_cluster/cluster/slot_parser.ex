@@ -1,13 +1,19 @@
 defmodule RedisCluster.Cluster.SlotParser do
   @moduledoc """
-  Parses the output of the CLUSTER SLOTS command.
+  Parses the output of the [CLUSTER SLOTS command](https://redis.io/docs/latest/commands/cluster-slots/).
+  This is included to support Redis clusters older than v7.0.0.
   """
 
+  @doc """
+  Parses the output of the CLUSTER SLOTS command.
+  """
   def parse(data) when is_list(data) do
     data
     |> Enum.flat_map(&parse_node/1)
     |> consolidate_slots()
   end
+
+  ## Helpers
 
   defp parse_node([start, stop | nodes]) do
     for {[host, port, id | _meta], n} <- Enum.with_index(nodes) do

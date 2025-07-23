@@ -3,6 +3,12 @@ defmodule RedisCluster.Cluster.NodeInfo do
   Struct holding info from the CLUSTER SHARDS or CLUSTER SLOTS commands.
   """
 
+  @typedoc """
+  Struct containing the information about a single Redis node.
+
+  This struct is used for both the `CLUSTER SHARDS` and `CLUSTER SLOTS` commands.
+  Also contains the health status of the node, if available.
+  """
   @type t :: %__MODULE__{
           id: String.t(),
           slots: [RedisCluster.HashSlots.hash_slot()],
@@ -36,6 +42,9 @@ defmodule RedisCluster.Cluster.NodeInfo do
     RedisCluster.Table.rows_to_iodata(rows, headers)
   end
 
+  @doc """
+  Safely converts a health status string to an atom.
+  """
   def health_atom("online"), do: :online
   def health_atom("loading"), do: :loading
   def health_atom("failed"), do: :failed

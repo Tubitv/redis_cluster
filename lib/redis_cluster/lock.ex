@@ -41,7 +41,10 @@ defmodule RedisCluster.Lock do
       true
   """
 
+  @typedoc "The name of the lock as an atom. Must be unique within the application."
   @type name() :: atom()
+
+  @typedoc "Possible statuses of a lock."
   @type status() :: :ok | :locked
 
   @doc """

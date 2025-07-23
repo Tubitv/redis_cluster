@@ -1,4 +1,10 @@
 defmodule RedisCluster.Cluster do
+  @moduledoc """
+  The main module for interacting with a Redis cluster. Typically you will use the 
+  `RedisCluster` module. Though this module can be used directly for more dynamic use
+  cases, such as connecting to a Redis cluster at runtime or in Livebook demos.
+  """
+
   alias RedisCluster.Key
   alias RedisCluster.HashSlots
   alias RedisCluster.Configuration
@@ -8,16 +14,27 @@ defmodule RedisCluster.Cluster do
 
   require Logger
 
+  @typedoc "A key in Redis, which can be a binary, atom, or number. It will be converted to a string."
   @type key() :: binary() | atom() | number()
+
+  @typedoc "A value in Redis, which can be a binary, atom, or number."
   @type value() :: binary() | atom() | number()
+
+  @typedoc "A list of key-value pairs or a map of key-value pairs."
   @type pairs() :: [{key(), value()}] | %{key() => value()}
+
+  @typedoc "A Redis command, which is a list of binary strings."
   @type command() :: [binary()]
+
+  @typedoc "A list of commands. Effectively a list of lists."
   @type pipeline() :: [command()]
 
+  @doc false
   def start_link(config = %Configuration{}) do
     Supervisor.start_link(__MODULE__, config, name: config.cluster)
   end
 
+  @doc false
   def child_spec(config = %Configuration{}, _opts) do
     %{
       id: __MODULE__,
@@ -177,6 +194,8 @@ defmodule RedisCluster.Cluster do
 
   This function cannot guarantee which value is set when a key is included
   multiple times in one call.
+
+  The key-value pairs can be given as a list of tuples or a map.
 
   Commands are sent sequentially for simplicity.
   This means the function will be slower than sending commands in parallel.
@@ -371,10 +390,10 @@ defmodule RedisCluster.Cluster do
   This allows sending any command to Redis that isn't already implemented in this module.
 
   Options:
-    * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
+    * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `false`). See `RedisCluster.Key.hash_slot/2`.
     * `:key` - (**REQUIRED**) The key to use when determining the hash slot.
     * `:role` - The role to use when querying the cluster. Possible values are:
-      - `:master` - Query the master node (master).
+      - `:master` - Query the master node (default).
       - `:replica` - Query a replica node.
   """
   @spec command(Configuration.t(), command(), Keyword.t()) :: term() | {:error, any()}
@@ -402,11 +421,13 @@ defmodule RedisCluster.Cluster do
   This allows sending any command to Redis that isn't already implemented in this module.
   It sends the commands in one batch, reducing the number of round trips.
 
+  Responses are returned as a list in the same order as the commands.
+
   Options:
-    * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
+    * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `false`). See `RedisCluster.Key.hash_slot/2`.
     * `:key` - (**REQUIRED**) The key to use when determining the hash slot.
     * `:role` - The role to use when querying the cluster. Possible values are:
-      - `:master` - Query the master node (master).
+      - `:master` - Query the master node (default).
       - `:replica` - Query a replica node.
   """
   @spec pipeline(Configuration.t(), pipeline(), Keyword.t()) :: [term()] | {:error, any()}
@@ -432,9 +453,12 @@ defmodule RedisCluster.Cluster do
   @doc """
   Sends the given pipeline to all nodes in the cluster.
   May filter on a specific role if desired, defaults to all nodes.
+
   Note that this sends a pipeline instead of a single command.
   You can issue as many commands as you like and get the raw results back.
+  The pipelines are sent to each node sequentially, so this may take some time.
   This is useful for debugging with commands like `DBSIZE` or `INFO MEMORY`.
+  Be sure to only send commands that are safe to run on any node.
 
   Options:
     * `:role` - The role to use when querying the cluster. Possible values are:
@@ -544,11 +568,11 @@ defmodule RedisCluster.Cluster do
     end
   end
 
-  def lookup_fallback(_config, slot, role = :master) do
+  defp lookup_fallback(_config, slot, role = :master) do
     raise RedisCluster.Exception, message: "No nodes found for slot #{slot} with role #{role}"
   end
 
-  def lookup_fallback(config, slot, role) do
+  defp lookup_fallback(config, slot, role) do
     # If requesting a replica (or any), fallback to master.
     Logger.warning("No nodes found for slot #{slot} with role #{role}, falling back to master.",
       config_name: config.name

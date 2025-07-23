@@ -1,4 +1,11 @@
 defmodule RedisCluster.ShardDiscovery do
+  @moduledoc """
+  A GenServer that discovers Redis shards in a cluster and manages the connection pools.
+  This module doesn't actively monitor the cluster for changes. Instead it waits for a
+  call to `rediscover_shards/1` to trigger a discovery process. This generally happens
+  when a MOVED error is encountered, indicating the cluster topology has changed.
+  """
+
   use GenServer
 
   require Logger
@@ -9,6 +16,7 @@ defmodule RedisCluster.ShardDiscovery do
   alias RedisCluster.HashSlots
   alias RedisCluster.Telemetry
 
+  @doc false
   def start_link(config) do
     GenServer.start_link(__MODULE__, config, name: config.shard_discovery)
   end
@@ -31,6 +39,11 @@ defmodule RedisCluster.ShardDiscovery do
     {:reply, :ok, config}
   end
 
+  @doc """
+  Triggers a rediscovery of the shards in the cluster. You shouldn't need to call this
+  function directly in most cases, as the cluster will automatically handle shard 
+  discovery when needed.
+  """
   @spec rediscover_shards(Configuration.t()) :: :ok
   def rediscover_shards(config) do
     Telemetry.cluster_rediscovery(%{config_name: config.name})

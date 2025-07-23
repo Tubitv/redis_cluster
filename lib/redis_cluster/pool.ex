@@ -1,6 +1,8 @@
 defmodule RedisCluster.Pool do
   @moduledoc """
-  Redis Cluster Node/Slot Supervisor.
+  Redis Cluster connection supervisor. A "pool" in this context is a set of connections
+  that point to the same Redis node (host and port). A Redis cluster will have a pool of
+  connections for each node in the cluster.
   """
 
   use DynamicSupervisor
@@ -19,6 +21,10 @@ defmodule RedisCluster.Pool do
     DynamicSupervisor.init(strategy: :one_for_one)
   end
 
+  @doc """
+  Stops all connections in the pool. This is typically called when the application
+  rediscovers the cluster.
+  """
   @spec stop_pool(Configuration.t()) :: :ok
   def stop_pool(config) do
     name = config.pool
@@ -31,6 +37,10 @@ defmodule RedisCluster.Pool do
     :ok
   end
 
+  @doc """
+  Starts a pool of connections for the given node information.
+  The configuration specifies how many connections to start for the given node.
+  """
   @spec start_pool(Configuration.t(), NodeInfo.t()) :: :ok
   def start_pool(config, %NodeInfo{host: host, port: port, role: role}) do
     supervisor_name = config.pool
@@ -49,6 +59,10 @@ defmodule RedisCluster.Pool do
     :ok
   end
 
+  @doc """
+  Retrieves a connection from the pool based on the host and port.
+  Will return the same connection for the same host and port per process.
+  """
   @spec get_conn(
           Configuration.t(),
           host :: binary(),

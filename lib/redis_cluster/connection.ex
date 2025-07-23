@@ -1,7 +1,7 @@
 defmodule RedisCluster.Connection do
   @moduledoc """
   A shim module to start a Redix connection.
-  This is necessary to send the READONLY command to replicas.
+  This is necessary to send the [READONLY command](https://redis.io/docs/latest/commands/readonly/) to replicas.
   When in read-write mode, replicas will redirect to the master.
   This must be done per connection, not node.
   """

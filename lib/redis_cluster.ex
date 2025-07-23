@@ -45,6 +45,20 @@ defmodule RedisCluster do
   end
   ```
 
+  Don't forget to start the Redis cluster in your application supervision tree, probably in `lib/my_app/application.ex`:
+
+  ```elixir
+  def start(_type, _args) do
+    children = [
+      MyApp.Redis,
+      # Other children...
+    ]
+
+    opts = [strategy: :one_for_one, name: MyApp.Supervisor]
+    Supervisor.start_link(children, opts)
+  end
+  ```
+
   Alternatively, you can use the `RedisCluster.Cluster` module directly.
 
   ```elixir

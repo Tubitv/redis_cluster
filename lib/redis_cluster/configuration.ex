@@ -1,12 +1,17 @@
 defmodule RedisCluster.Configuration do
-  # This includes the host, port, registry, pool size. 
+  @moduledoc """
+  A struct to hold the configuration for working with a Redis cluster.
+  """
 
-  # The host should ideally be the configuration endpoint for ElastiCache (or equivalent).
-  # The configuration endpoint picks a random node in the cluster to connect to.
-  # This avoids having all the discovery traffic go to a single node.
   @enforce_keys [:host, :port, :name, :registry, :cluster, :pool, :shard_discovery, :pool_size]
   defstruct [:host, :port, :name, :registry, :cluster, :pool, :shard_discovery, :pool_size]
 
+  @typedoc """
+  A struct representing the configuration for a Redis cluster.
+
+  The key elements are the host, port, and pool size. 
+  The other fields are used to uniquely identify different processes.
+  """
   @type t :: %__MODULE__{
           host: String.t(),
           port: non_neg_integer(),
@@ -18,6 +23,23 @@ defmodule RedisCluster.Configuration do
           pool_size: non_neg_integer()
         }
 
+  @doc """
+  A convenience function to create a configuration struct from application environment.
+
+  This is intended for the `RedisCluster` module.
+  If you create your own config struct, then do so directly using struct syntax:
+
+      %RedisCluster.Configuration{
+        host: "localhost",
+        port: 6379,
+        name: MyApp.RedisCluster,
+        registry: MyApp.RedisCluster.Registry,
+        cluster: MyApp.RedisCluster.Cluster,
+        pool: MyApp.RedisCluster.Pool,
+        shard_discovery: MyApp.RedisCluster.ShardDiscovery,
+        pool_size: 10
+      }
+  """
   @spec from_app_env(Keyword.t(), atom()) :: t()
   def from_app_env(opts, module) do
     otp_app = Keyword.fetch!(opts, :otp_app)

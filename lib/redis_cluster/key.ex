@@ -1,14 +1,22 @@
 defmodule RedisCluster.Key do
+  @moduledoc """
+  This module handles the key operations, namely hashing the keys and finding the appropriate hash slots.
+  For more information on how Redis uses hash slots, see the [Redis Cluster documentation](https://redis.io/docs/latest/operate/oss_and_stack/reference/cluster-spec/#key-distribution-model).
+  """
+
   @max_slot 16_384
+
+  @typedoc "The range of hash values in a Redis cluster."
   @type hash() :: 0..16_383
 
   @doc """
-  Computes the hash slot for the given key. If the `:compute_hash_tag` option is given, 
+  Computes the hash slot for the given key. If the `:compute_hash_tag` option is given 
   then looks for a hash tag in the key and uses it, if present, to compute the hash slot.
+  This function doesn't look for hash tags by default. This saves some overhead when not needed.
 
   ## Options
 
-    * `:compute_hash_tag` - If set to `true`, the hash tag will be computed from the key.
+    * `:compute_hash_tag` - If set to `true`, the hash tag will be computed from the key (default `false`).
       This is useful for cluster mode, where keys with the same hash tag are stored
       in the same slot.
 

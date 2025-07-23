@@ -2,7 +2,7 @@ defmodule RedisCluster.Table do
   @moduledoc """
   A module for formatting lists of lists/tuples into a table-like string representation.
   Row data is converted to strings, padded for alignment, and formatted with headers.
-  Assumes the headers and all rows are of the same length.
+  Assumes the header list and all row lists are of the same length.
   """
 
   @doc """

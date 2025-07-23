@@ -43,7 +43,7 @@ defmodule RedisCluster.Telemetry do
         nil
       )
 
-      # Using telemetry_metrics
+      # Using [`telemetry_metrics`](https://hex.pm/packages/telemetry_metrics)
       Telemetry.Metrics.counter("redis_cluster.command.stop.count", tags: [:command_name])
       Telemetry.Metrics.distribution("redis_cluster.command.stop.duration",
         unit: {:native, :millisecond}

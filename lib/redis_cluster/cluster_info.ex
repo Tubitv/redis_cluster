@@ -1,13 +1,20 @@
 defmodule RedisCluster.ClusterInfo do
   @moduledoc """
   A module for fetching the cluster information from a Redis cluster.
-  Mostly intended for testing and debugging use. 
+  Aside from internal use, this may be used for testing and debugging. 
   Be aware this module will open a connection for each call.
   """
 
   alias RedisCluster.Cluster.NodeInfo
   alias RedisCluster.Configuration
 
+  @doc """
+  Opens a new connection to the Redis cluster and fetches the cluster information.
+
+  The host and port are taken from the provided configuration.
+  Ideally the host should be a configuration endpoint for ElastiCache (or equivalent).
+  The connection is closed after the information is fetched.
+  """
   @spec query(Configuration.t()) :: [NodeInfo.t()] | no_return()
   def query(config) do
     {:ok, conn} = Redix.start_link(host: config.host, port: config.port)
@@ -22,10 +29,13 @@ defmodule RedisCluster.ClusterInfo do
 
   @doc """
   Fetches the cluster information from the Redis cluster and passes it to the provided function.
+
   If the function returns true, the cluster will be queried again.
   This continues until the function returns false.
   The function also receives the current attempt number (starting from 1).
   The function must handle delays for the next query.
+  The advantage of `query_while/2` over `query/1` is that it allows for the connection to be reused.
+  The connection is closed when the given function returns false.
   """
   def query_while(config, fun) when is_function(fun, 2) do
     {:ok, conn} = Redix.start_link(host: config.host, port: config.port)
