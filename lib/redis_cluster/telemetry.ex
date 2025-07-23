@@ -33,6 +33,10 @@ defmodule RedisCluster.Telemetry do
   ### Connection Events
   - `[:redis_cluster, :connection, :acquired]` - When a connection is acquired from pool
 
+  ### Redirect Events
+  - `[:redis_cluster, :redirect, :moved]` - When a MOVED redirect occurs
+  - `[:redis_cluster, :redirect, :ask]` - When a ASK redirect occurs
+
   ## Example Usage
 
       # Basic telemetry handler
@@ -215,5 +219,21 @@ defmodule RedisCluster.Telemetry do
       stats,
       Map.put(metadata, :timestamp, System.system_time())
     )
+  end
+
+  @doc """
+  Emits a telemetry event when a ASK redirect occurs.
+  """
+  @spec ask_redirect(metadata :: map()) :: :ok
+  def ask_redirect(metadata \\ %{}) do
+    execute([:redis_cluster, :redirect, :ask], %{count: 1}, metadata)
+  end
+
+  @doc """
+  Emits a telemetry event when a MOVED redirect occurs.
+  """
+  @spec moved_redirect(metadata :: map()) :: :ok
+  def moved_redirect(metadata \\ %{}) do
+    execute([:redis_cluster, :redirect, :moved], %{count: 1}, metadata)
   end
 end
