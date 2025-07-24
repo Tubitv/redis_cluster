@@ -505,6 +505,9 @@ defmodule RedisCluster.Cluster do
     conn = get_conn(config, slot, role)
 
     case pipeline_with_retry(config, role, slot, conn, key, [command]) do
+      {:ok, [error = %Redix.Error{}]} ->
+        {:error, error}
+
       {:ok, [response]} ->
         response
 
@@ -537,7 +540,7 @@ defmodule RedisCluster.Cluster do
   defp pipeline_with_retry(config, role, slot, conn, key_or_keys, commands) do
     case Redix.pipeline(conn, commands) do
       {:ok, result} ->
-        result
+        {:ok, result}
 
       # The key wasn't on the expected node.
       # Try rediscovering the cluster.
