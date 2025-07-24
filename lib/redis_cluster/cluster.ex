@@ -252,7 +252,7 @@ defmodule RedisCluster.Cluster do
           ])
         end)
 
-      Redix.pipeline(conn, cmds)
+      config.redis_module.pipeline(conn, cmds)
     end
     |> Enum.reject(&match?({:ok, _}, &1))
     |> case do
@@ -349,7 +349,7 @@ defmodule RedisCluster.Cluster do
     for {conn, keys} <- keys_by_conn do
       cmds = Enum.map(keys, &["DEL", &1])
 
-      Redix.pipeline(conn, cmds)
+      config.redis_module.pipeline(conn, cmds)
     end
     |> Enum.reduce_while(0, fn
       {:ok, results}, acc ->
@@ -467,7 +467,7 @@ defmodule RedisCluster.Cluster do
     for {_mod, _lo, _hi, role, host, port} <- HashSlots.all_slots(config),
         role_selector == :any or role == role_selector do
       conn = RedisCluster.Pool.get_conn(config, host, port)
-      result = Redix.pipeline(conn, commands)
+      result = config.redis_module.pipeline(conn, commands)
 
       {host, port, result}
     end
@@ -538,7 +538,7 @@ defmodule RedisCluster.Cluster do
           commands :: pipeline()
         ) :: {:ok, [Redix.Protocol.redis_value()]} | {:error, any()}
   defp pipeline_with_retry(config, role, slot, conn, key_or_keys, commands) do
-    case Redix.pipeline(conn, commands) do
+    case config.redis_module.pipeline(conn, commands) do
       {:ok, result} ->
         {:ok, result}
 
@@ -588,7 +588,7 @@ defmodule RedisCluster.Cluster do
     conn = get_conn(config, expected_slot, role)
 
     # Try one more time.
-    Redix.pipeline(conn, commands)
+    config.redis_module.pipeline(conn, commands)
   end
 
   defp handle_ask_redirect(config, role, slot, key_or_keys, commands, rest) do

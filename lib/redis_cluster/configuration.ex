@@ -3,13 +3,32 @@ defmodule RedisCluster.Configuration do
   A struct to hold the configuration for working with a Redis cluster.
   """
 
-  @enforce_keys [:host, :port, :name, :registry, :cluster, :pool, :shard_discovery, :pool_size]
-  defstruct [:host, :port, :name, :registry, :cluster, :pool, :shard_discovery, :pool_size]
+  @enforce_keys [
+    :host,
+    :port,
+    :name,
+    :registry,
+    :cluster,
+    :pool,
+    :shard_discovery,
+    :pool_size
+  ]
+  defstruct [
+    :host,
+    :port,
+    :name,
+    :registry,
+    :cluster,
+    :pool,
+    :shard_discovery,
+    :pool_size,
+    redis_module: Redix
+  ]
 
   @typedoc """
   A struct representing the configuration for a Redis cluster.
 
-  The key elements are the host, port, and pool size. 
+  The key elements are the host, port, and pool size.
   The other fields are used to uniquely identify different processes.
   """
   @type t :: %__MODULE__{
@@ -20,7 +39,8 @@ defmodule RedisCluster.Configuration do
           cluster: atom(),
           pool: atom(),
           shard_discovery: atom(),
-          pool_size: non_neg_integer()
+          pool_size: non_neg_integer(),
+          redis_module: module()
         }
 
   @doc """

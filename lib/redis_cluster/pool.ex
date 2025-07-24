@@ -49,7 +49,7 @@ defmodule RedisCluster.Pool do
       name = registry_name(config.registry, host, port, index - 1)
 
       conn_opts = [host: host, port: port, name: name]
-      args = {role, conn_opts}
+      args = {role, config, conn_opts}
 
       spec = Supervisor.child_spec({RedisCluster.Connection, args}, id: {Redix, name})
 
