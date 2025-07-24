@@ -130,11 +130,10 @@ defmodule RedisCluster.Cluster do
     }
 
     Telemetry.execute_command(command, metadata, fn ->
-      config
-      |> command_with_retry(role, slot, key, command)
-      |> case do
+      case command_with_retry(config, role, slot, key, command) do
+        {:error, _} = error -> error
         "OK" -> :ok
-        error -> error
+        other -> other
       end
     end)
   end
@@ -300,7 +299,7 @@ defmodule RedisCluster.Cluster do
       |> Enum.flat_map(fn {slot, key_batch} ->
         case command_with_retry(config, role, slot, key_batch, ["MGET" | key_batch]) do
           {:error, _} -> []
-          values -> Enum.zip(key_batch, values)
+          values when is_list(values) -> Enum.zip(key_batch, values)
         end
       end)
 
@@ -434,7 +433,10 @@ defmodule RedisCluster.Cluster do
     }
 
     Telemetry.execute_pipeline(commands, metadata, fn ->
-      pipeline_with_retry(config, role, slot, key, commands)
+      case pipeline_with_retry(config, role, slot, key, commands) do
+        {:ok, results} -> results
+        {:error, reason} -> {:error, reason}
+      end
     end)
   end
 
@@ -495,16 +497,16 @@ defmodule RedisCluster.Cluster do
   @spec command_with_retry(
           Configuration.t(),
           role(),
-          slot :: integer(),
+          slot :: RedisCluster.Key.hash(),
           key() | [key()],
           command()
         ) :: Redix.Protocol.redis_value() | {:error, any()}
   defp command_with_retry(config, role, slot, key, command) do
     conn = get_conn(config, slot, role)
 
-    case pipeline_with_retry(config, role, slot, conn, key, command) do
+    case pipeline_with_retry(config, role, slot, conn, key, [command]) do
       {:ok, [response]} ->
-        {:ok, response}
+        response
 
       {:error, reason} ->
         {:error, reason}
@@ -514,7 +516,7 @@ defmodule RedisCluster.Cluster do
   @spec pipeline_with_retry(
           Configuration.t(),
           role(),
-          slot :: integer(),
+          slot :: RedisCluster.Key.hash(),
           key() | [key()],
           commands :: pipeline()
         ) :: {:ok, [Redix.Protocol.redis_value()]} | {:error, any()}
@@ -527,7 +529,7 @@ defmodule RedisCluster.Cluster do
   @spec pipeline_with_retry(
           Configuration.t(),
           role(),
-          slot :: integer(),
+          slot :: RedisCluster.Key.hash(),
           conn :: pid(),
           key_or_keys :: key() | [key()],
           commands :: pipeline()
@@ -619,7 +621,7 @@ defmodule RedisCluster.Cluster do
     end
   end
 
-  @spec get_conn(Configuration.t(), slot :: integer(), role()) :: pid()
+  @spec get_conn(Configuration.t(), slot :: RedisCluster.Key.hash(), role()) :: pid()
   defp get_conn(config, slot, role) do
     {host, port} = lookup(config, slot, role)
     RedisCluster.Pool.get_conn(config, host, port)
