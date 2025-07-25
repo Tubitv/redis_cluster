@@ -74,7 +74,8 @@ defmodule RedisCluster.Configuration do
       cluster: fetch_name(name, env, :cluster, "Cluster__"),
       pool: fetch_name(name, env, :pool, "Pool__"),
       shard_discovery: fetch_name(name, env, :shard_discovery, "ShardDiscovery__"),
-      pool_size: Keyword.get(env, :pool_size, 10)
+      pool_size: Keyword.get(env, :pool_size, 10),
+      redis_module: Keyword.get(env, :redis_module, Redix)
     }
   end
 
