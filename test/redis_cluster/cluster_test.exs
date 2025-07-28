@@ -423,6 +423,21 @@ defmodule RedisCluster.ClusterTest do
       # Clean up
       Cluster.delete_many(config, Map.keys(pairs))
     end
+
+    test "should handle multi-key operations in parallel", context do
+      config = context[:config]
+
+      pairs = %{
+        "parallel-multi-key-1" => "value1",
+        "parallel-multi-key-2" => "value2",
+        "parallel-multi-key-3" => "value3"
+      }
+
+      assert :ok = Cluster.set_many_async(config, pairs)
+      assert ~w[value1 value2 value3] = Cluster.get_many_async(config, Map.keys(pairs))
+      assert 3 = Cluster.delete_many_async(config, Map.keys(pairs))
+      assert [nil, nil, nil] = Cluster.get_many_async(config, Map.keys(pairs))
+    end
   end
 
   describe "hash tag operations" do
