@@ -1,6 +1,6 @@
 defmodule RedisCluster.Cluster do
   @moduledoc """
-  The main module for interacting with a Redis cluster. Typically you will use the 
+  The main module for interacting with a Redis cluster. Typically you will use the
   `RedisCluster` module. Though this module can be used directly for more dynamic use
   cases, such as connecting to a Redis cluster at runtime or in Livebook demos.
   """
@@ -28,6 +28,9 @@ defmodule RedisCluster.Cluster do
 
   @typedoc "A list of commands. Effectively a list of lists."
   @type pipeline() :: [command()]
+
+  @typedoc "The role of a Redis node. Either a master or a replica."
+  @type role() :: :master | :replica
 
   @doc false
   def start_link(config = %Configuration{}) do
@@ -58,6 +61,8 @@ defmodule RedisCluster.Cluster do
     Supervisor.init(children, strategy: :one_for_all)
   end
 
+  @spec get(RedisCluster.Configuration.t(), atom() | binary() | number()) ::
+          nil | binary() | {:error, any()}
   @doc """
   Calls the [Redis `GET` command](https://redis.io/commands/get).
 
@@ -81,9 +86,7 @@ defmodule RedisCluster.Cluster do
     }
 
     Telemetry.execute_command(["GET", key], metadata, fn ->
-      with_retry(config, role, slot, key, fn conn ->
-        Redix.command(conn, ["GET", key])
-      end)
+      command_with_retry(config, role, key, ["GET", key], opts)
     end)
   end
 
@@ -127,12 +130,10 @@ defmodule RedisCluster.Cluster do
     }
 
     Telemetry.execute_command(command, metadata, fn ->
-      with_retry(config, role, slot, key, fn conn ->
-        Redix.command(conn, command)
-      end)
-      |> case do
+      case command_with_retry(config, role, key, command, opts) do
+        {:error, _} = error -> error
         "OK" -> :ok
-        error -> error
+        other -> other
       end
     end)
   end
@@ -161,9 +162,7 @@ defmodule RedisCluster.Cluster do
     }
 
     Telemetry.execute_command(["DEL", key], metadata, fn ->
-      with_retry(config, role, slot, key, fn conn ->
-        Redix.command(conn, ["DEL", key])
-      end)
+      command_with_retry(config, role, key, ["DEL", key], opts)
     end)
   end
 
@@ -253,7 +252,7 @@ defmodule RedisCluster.Cluster do
           ])
         end)
 
-      Redix.pipeline(conn, cmds)
+      config.redis_module.pipeline(conn, cmds)
     end
     |> Enum.reject(&match?({:ok, _}, &1))
     |> case do
@@ -297,18 +296,10 @@ defmodule RedisCluster.Cluster do
       keys
       |> Enum.uniq()
       |> Enum.group_by(&Key.hash_slot(&1, opts))
-      |> Enum.flat_map(fn {slot, key_batch} ->
-        values =
-          with_retry(config, role, slot, key_batch, fn conn ->
-            case Redix.command(conn, ["MGET" | key_batch]) do
-              {:error, _} -> Enum.map(key_batch, fn _ -> nil end)
-              values -> values
-            end
-          end)
-
-        case values do
+      |> Enum.flat_map(fn {_slot, key_batch} ->
+        case command_with_retry(config, role, key_batch, ["MGET" | key_batch], opts) do
           {:error, _} -> []
-          values -> Enum.zip(key_batch, values)
+          values when is_list(values) -> Enum.zip(key_batch, values)
         end
       end)
 
@@ -358,7 +349,7 @@ defmodule RedisCluster.Cluster do
     for {conn, keys} <- keys_by_conn do
       cmds = Enum.map(keys, &["DEL", &1])
 
-      Redix.pipeline(conn, cmds)
+      config.redis_module.pipeline(conn, cmds)
     end
     |> Enum.reduce_while(0, fn
       {:ok, results}, acc ->
@@ -385,35 +376,49 @@ defmodule RedisCluster.Cluster do
     end)
   end
 
+  @deprecated "Use `command/4` instead."
+  @spec command(Configuration.t(), command(), Keyword.t()) :: term() | {:error, any()}
+  def command(config, command, opts) do
+    key = opts |> Keyword.fetch!(:key) |> to_string()
+    command(config, command, key, opts)
+  end
+
   @doc """
   Sends the given command to Redis.
   This allows sending any command to Redis that isn't already implemented in this module.
 
+  Like `pipeline/4`, this function needs a key to determine which node to send the command to.
+  If the command is safe to send to any node, you can use `:any` as the key.
+  This will select a random node.
+
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `false`). See `RedisCluster.Key.hash_slot/2`.
-    * `:key` - (**REQUIRED**) The key to use when determining the hash slot.
     * `:role` - The role to use when querying the cluster. Possible values are:
       - `:master` - Query the master node (default).
       - `:replica` - Query a replica node.
   """
-  @spec command(Configuration.t(), command(), Keyword.t()) :: term() | {:error, any()}
-  def command(config, command, opts) do
+  @spec command(Configuration.t(), command(), key() | :any, Keyword.t()) ::
+          term() | {:error, any()}
+  def command(config, command, key, opts) do
     role = Keyword.get(opts, :role, :master)
-    key = opts |> Keyword.fetch!(:key) |> to_string()
-    slot = Key.hash_slot(key, opts)
 
     metadata = %{
       config_name: config.name,
       key: key,
       role: role,
-      slot: slot
+      slot: hash_slot(key, opts)
     }
 
     Telemetry.execute_command(command, metadata, fn ->
-      with_retry(config, role, slot, key, fn conn ->
-        Redix.command(conn, command)
-      end)
+      command_with_retry(config, role, key, command, opts)
     end)
+  end
+
+  @deprecated "Use `pipeline/4` instead."
+  @spec pipeline(Configuration.t(), pipeline(), Keyword.t()) :: [term()] | {:error, any()}
+  def pipeline(config, commands, opts) do
+    key = Keyword.fetch!(opts, :key)
+    pipeline(config, commands, key, opts)
   end
 
   @doc """
@@ -423,33 +428,41 @@ defmodule RedisCluster.Cluster do
 
   Responses are returned as a list in the same order as the commands.
 
+  The key is used to determine the hash slot which is mapped to a node.
+  Commands like `GET` and `SET` only work with keys assigned to that node.
+  Other commands like `DBSIZE` and `INFO MEMORY` can be sent to any node.
+  If all commmands in the pipeline are safe to send to any node, you can use `:any` as the key.
+  This will select a random node.
+
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `false`). See `RedisCluster.Key.hash_slot/2`.
-    * `:key` - (**REQUIRED**) The key to use when determining the hash slot.
     * `:role` - The role to use when querying the cluster. Possible values are:
       - `:master` - Query the master node (default).
       - `:replica` - Query a replica node.
   """
-  @spec pipeline(Configuration.t(), pipeline(), Keyword.t()) :: [term()] | {:error, any()}
-  def pipeline(config, commands, opts) do
+  @spec pipeline(Configuration.t(), pipeline(), key() | :any, Keyword.t()) ::
+          [term()] | {:error, any()}
+  def pipeline(config, commands, key, opts) do
     role = Keyword.get(opts, :role, :master)
-    key = Keyword.fetch!(opts, :key)
-    slot = Key.hash_slot(key, opts)
 
     metadata = %{
       config_name: config.name,
       key: key,
-      role: role,
-      slot: slot
+      slot: hash_slot(key, opts),
+      role: role
     }
 
     Telemetry.execute_pipeline(commands, metadata, fn ->
-      with_retry(config, role, slot, key, fn conn ->
-        Redix.pipeline(conn, commands)
-      end)
+      case pipeline_with_retry(config, role, key, commands, opts) do
+        {:ok, results} -> results
+        {:error, reason} -> {:error, reason}
+      end
     end)
   end
 
+  @spec broadcast(RedisCluster.Configuration.t(), [[binary()]]) :: [
+          {binary(), non_neg_integer(), any()}
+        ]
   @doc """
   Sends the given pipeline to all nodes in the cluster.
   May filter on a specific role if desired, defaults to all nodes.
@@ -474,7 +487,7 @@ defmodule RedisCluster.Cluster do
     for {_mod, _lo, _hi, role, host, port} <- HashSlots.all_slots(config),
         role_selector == :any or role == role_selector do
       conn = RedisCluster.Pool.get_conn(config, host, port)
-      result = Redix.pipeline(conn, commands)
+      result = config.redis_module.pipeline(conn, commands)
 
       {host, port, result}
     end
@@ -501,44 +514,68 @@ defmodule RedisCluster.Cluster do
     end
   end
 
-  @spec with_retry(
+  @spec command_with_retry(
           Configuration.t(),
-          :master | :replica,
-          slot :: integer(),
-          key() | [key()],
-          fun :: (pid() -> term())
-        ) :: term() | {:error, any()}
-  defp with_retry(config, role, slot, key_or_keys, fun) do
-    conn = get_conn(config, slot, role)
+          role(),
+          key_or_keys :: key() | [key()] | :any,
+          command(),
+          opts :: Keyword.t()
+        ) :: Redix.Protocol.redis_value() | {:error, any()}
+  defp command_with_retry(config, role, key_or_keys, command, opts) do
+    conn = select_conn(config, key_or_keys, role, opts)
 
-    case fun.(conn) do
+    case pipeline_with_retry(config, role, conn, key_or_keys, [command], opts) do
+      {:ok, [error = %Redix.Error{}]} ->
+        {:error, error}
+
+      {:ok, [response]} ->
+        response
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @spec pipeline_with_retry(
+          Configuration.t(),
+          role(),
+          key_or_keys :: key() | [key()] | :any,
+          commands :: pipeline(),
+          opts :: Keyword.t()
+        ) :: {:ok, [Redix.Protocol.redis_value()]} | {:error, any()}
+  defp pipeline_with_retry(config, role, key_or_keys, commands, opts) do
+    conn = select_conn(config, key_or_keys, role, opts)
+
+    pipeline_with_retry(config, role, conn, key_or_keys, commands, opts)
+  end
+
+  @spec pipeline_with_retry(
+          Configuration.t(),
+          role(),
+          conn :: pid(),
+          key_or_keys :: key() | [key()] | :any,
+          commands :: pipeline(),
+          opts :: Keyword.t()
+        ) :: {:ok, [Redix.Protocol.redis_value()]} | {:error, any()}
+  defp pipeline_with_retry(config, role, conn, key_or_keys, commands, opts) do
+    case config.redis_module.pipeline(conn, commands) do
       {:ok, result} ->
-        result
+        {:ok, result}
 
       # The key wasn't on the expected node.
       # Try rediscovering the cluster.
-      {:error, %Redix.Error{message: "MOVED" <> rest}} ->
-        [expected_slot, expected_host] = String.split(rest, " ", parts: 2, trim: true)
+      {:error, %Redix.Error{message: "MOVED " <> rest}} ->
+        handle_moved_redirect(config, role, key_or_keys, commands, rest, opts)
 
-        Logger.warning("Received MOVED error, rediscovering cluster.",
-          slot: slot,
-          role: role,
-          expected_slot: expected_slot,
-          expected_host: expected_host,
-          keys: List.wrap(key_or_keys),
-          config_name: config.name,
-          table: HashSlots.all_slots_as_table(config)
-        )
-
-        rediscover(config)
-        conn = get_conn(config, slot, role)
-        fun.(conn)
+      # A temporary redirect.
+      {:error, %Redix.Error{message: "ASK " <> rest}} ->
+        handle_ask_redirect(config, role, key_or_keys, commands, rest, opts)
 
       error = {:error, reason} ->
         Logger.warning("Failed to query Redis",
-          slot: slot,
           role: role,
           keys: List.wrap(key_or_keys),
+          slot: hash_slot(key_or_keys, opts),
           config_name: config.name,
           reason: reason
         )
@@ -547,6 +584,104 @@ defmodule RedisCluster.Cluster do
     end
   end
 
+  defp handle_moved_redirect(config, role, key_or_keys, commands, rest, opts) do
+    {expected_slot, host, port} = parse_redirect(rest, config.host)
+    expected_host = "#{host}:#{port}"
+
+    metadata = %{
+      role: role,
+      expected_slot: expected_slot,
+      expected_host: expected_host,
+      keys: List.wrap(key_or_keys),
+      slot: hash_slot(key_or_keys, opts),
+      config_name: config.name
+    }
+
+    Logger.warning("Received MOVED redirect, rediscovering cluster.",
+      metadata: metadata,
+      table: HashSlots.all_slots_as_table(config)
+    )
+
+    Telemetry.moved_redirect(metadata)
+
+    rediscover(config)
+    conn = get_conn(config, expected_slot, role)
+
+    # Try one more time.
+    config.redis_module.pipeline(conn, commands)
+  end
+
+  defp handle_ask_redirect(config, role, key_or_keys, commands, rest, opts) do
+    {expected_slot, domain, port} = parse_redirect(rest, config.host)
+    expected_host = "#{domain}:#{port}"
+
+    metadata = %{
+      role: role,
+      expected_slot: expected_slot,
+      expected_host: expected_host,
+      keys: List.wrap(key_or_keys),
+      slot: hash_slot(key_or_keys, opts),
+      config_name: config.name
+    }
+
+    Logger.warning("Received ASK redirect",
+      metadata: metadata,
+      table: HashSlots.all_slots_as_table(config)
+    )
+
+    Telemetry.ask_redirect(metadata)
+
+    conn = get_conn(config, expected_slot, role)
+    new_commands = [["ASKING"] | commands]
+
+    case pipeline_with_retry(config, role, conn, key_or_keys, new_commands, opts) do
+      {:ok, result} ->
+        # Remove the ASKING response from the result.
+        {:ok, Enum.drop(result, 1)}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @spec hash_slot(:any, Keyword.t()) :: :any
+  @spec hash_slot(key() | [key()], Keyword.t()) :: RedisCluster.Key.hash()
+  defp hash_slot(:any, _opts) do
+    :any
+  end
+
+  defp hash_slot([key | _], opts) do
+    # Assumes all keys hash to the same slot.
+    key |> to_string() |> Key.hash_slot(opts)
+  end
+
+  defp hash_slot(key, opts) do
+    key |> to_string() |> Key.hash_slot(opts)
+  end
+
+  defp select_conn(config, key_or_keys, role_selector, opts) do
+    case hash_slot(key_or_keys, opts) do
+      :any ->
+        random_conn(config, role_selector)
+
+      slot ->
+        get_conn(config, slot, role_selector)
+    end
+  end
+
+  defp random_conn(config, role_selector) do
+    slots =
+      for {_mod, _lo, _hi, role, host, port} <- HashSlots.all_slots(config),
+          role_selector == :any or role == role_selector do
+        {host, port}
+      end
+
+    {host, port} = Enum.random(slots)
+
+    RedisCluster.Pool.get_conn(config, host, port)
+  end
+
+  @spec get_conn(Configuration.t(), slot :: RedisCluster.Key.hash(), role()) :: pid()
   defp get_conn(config, slot, role) do
     {host, port} = lookup(config, slot, role)
     RedisCluster.Pool.get_conn(config, host, port)
@@ -615,5 +750,23 @@ defmodule RedisCluster.Cluster do
 
   defp rediscover(config) do
     RedisCluster.ShardDiscovery.rediscover_shards(config)
+  end
+
+  # Format for redirect is `ASK|MOVED <target_slot> [<target_host>]:<port>`.
+  # This function assumes the `ASK` or `MOVED` portion has been removed from the message.
+  defp parse_redirect(message, original_host) do
+    [target_slot, target_host] = String.split(message, " ", parts: 2, trim: true)
+    target_slot = String.to_integer(target_slot)
+
+    case target_host do
+      ":" <> port ->
+        # No domain, just a port.
+        # So we use the original host with a different port.
+        {target_slot, original_host, String.to_integer(port)}
+
+      "" <> host ->
+        [domain, port] = String.split(host, ":", parts: 2, trim: true)
+        {target_slot, domain, String.to_integer(port)}
+    end
   end
 end

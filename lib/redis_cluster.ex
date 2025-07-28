@@ -121,23 +121,49 @@ defmodule RedisCluster do
         RedisCluster.Cluster.delete_many(config(), keys, opts)
       end
 
-      def command(command, opts \\ []) do
-        RedisCluster.Cluster.command(config(), command, opts)
+      @deprecated "Use `command/3` instead."
+      def command(command, opts) do
+        key = Keyword.fetch!(opts, :key)
+        command(command, key, opts)
       end
 
-      def command!(command, opts \\ []) do
+      def command(command, key, opts) do
+        RedisCluster.Cluster.command(config(), command, key, opts)
+      end
+
+      @deprecated "Use `command!/3` instead."
+      def command!(command, opts) do
         command
         |> command(opts)
         |> bang!()
       end
 
-      def pipeline(commands, opts \\ []) do
-        RedisCluster.Cluster.pipeline(config(), commands, opts)
+      def command!(command, key, opts) do
+        command
+        |> command(key, opts)
+        |> bang!()
       end
 
-      def pipeline!(commands, opts \\ []) do
+      @deprecated "Use `pipeline/3` instead."
+      def pipeline(commands, opts) do
+        key = Keyword.fetch!(opts, :key)
+        pipeline(commands, key, opts)
+      end
+
+      def pipeline(commands, key, opts) do
+        RedisCluster.Cluster.pipeline(config(), commands, key, opts)
+      end
+
+      @deprecated "Use `pipeline!/3` instead."
+      def pipeline!(commands, opts) do
         commands
         |> pipeline(opts)
+        |> bang!()
+      end
+
+      def pipeline!(commands, key, opts) do
+        commands
+        |> pipeline(key, opts)
         |> bang!()
       end
 

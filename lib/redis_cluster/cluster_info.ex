@@ -1,7 +1,7 @@
 defmodule RedisCluster.ClusterInfo do
   @moduledoc """
   A module for fetching the cluster information from a Redis cluster.
-  Aside from internal use, this may be used for testing and debugging. 
+  Aside from internal use, this may be used for testing and debugging.
   Be aware this module will open a connection for each call.
   """
 
@@ -17,7 +17,7 @@ defmodule RedisCluster.ClusterInfo do
   """
   @spec query(Configuration.t()) :: [NodeInfo.t()] | no_return()
   def query(config) do
-    {:ok, conn} = Redix.start_link(host: config.host, port: config.port)
+    {:ok, conn} = config.redis_module.start_link(host: config.host, port: config.port)
 
     result = fetch_cluster_info(conn, config)
 
@@ -38,7 +38,7 @@ defmodule RedisCluster.ClusterInfo do
   The connection is closed when the given function returns false.
   """
   def query_while(config, fun) when is_function(fun, 2) do
-    {:ok, conn} = Redix.start_link(host: config.host, port: config.port)
+    {:ok, conn} = config.redis_module.start_link(host: config.host, port: config.port)
     query_while(conn, config, 1, fun)
   end
 
@@ -61,7 +61,7 @@ defmodule RedisCluster.ClusterInfo do
   end
 
   defp cluster_shards(conn, config) do
-    case Redix.command(conn, ~w[CLUSTER SHARDS]) do
+    case config.redis_module.command(conn, ~w[CLUSTER SHARDS]) do
       {:ok, data} ->
         RedisCluster.Cluster.ShardParser.parse(data)
 
@@ -74,7 +74,7 @@ defmodule RedisCluster.ClusterInfo do
   end
 
   defp cluster_slots(conn, config) do
-    case Redix.command(conn, ~w[CLUSTER SLOTS]) do
+    case config.redis_module.command(conn, ~w[CLUSTER SLOTS]) do
       {:ok, data} ->
         RedisCluster.Cluster.SlotParser.parse(data)
 
@@ -87,7 +87,7 @@ defmodule RedisCluster.ClusterInfo do
   end
 
   defp standalone_info(conn, config) do
-    case Redix.command(conn, ~w[ROLE]) do
+    case config.redis_module.command(conn, ~w[ROLE]) do
       {:ok, data} ->
         data
         |> RedisCluster.Cluster.RoleParser.parse(config)
@@ -103,7 +103,7 @@ defmodule RedisCluster.ClusterInfo do
   end
 
   defp fetch_remaining_replicas({:partial, master, _replicas}, config) do
-    conn = Redix.start_link(host: master.host, port: master.port)
+    conn = config.redis_module.start_link(host: master.host, port: master.port)
     result = standalone_info(conn, config)
 
     GenServer.stop(conn)

@@ -50,7 +50,7 @@ defmodule RedisCluster.ShardDiscoveryTest do
 
     # Sending a command to the wrong node to trigger rediscovery.
     assert {:error, %Redix.Error{message: "MOVED" <> _}} =
-             Cluster.command(config, ~w[SET key value], key: "wrong")
+             Cluster.command(config, ~w[SET key value], "wrong", [])
 
     # Wait for cluster discovery
     Process.sleep(2000)

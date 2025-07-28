@@ -230,7 +230,8 @@ defmodule RedisCluster.ClusterTest do
             ["GET", key],
             ["DEL", key]
           ],
-          key: key
+          key,
+          []
         )
 
       assert [nil, "OK", "value", 1] = result
@@ -446,10 +447,7 @@ defmodule RedisCluster.ClusterTest do
       cmd = ["MGET" | keys]
 
       assert ["30", "john@example.com", "John"] ==
-               Cluster.command(config, cmd,
-                 key: List.first(keys),
-                 compute_hash_tag: true
-               )
+               Cluster.command(config, cmd, List.first(keys), compute_hash_tag: true)
 
       # Clean up
       for key <- keys do
@@ -471,10 +469,7 @@ defmodule RedisCluster.ClusterTest do
       cmd = ["MGET" | different_slot_keys]
 
       result =
-        Cluster.command(config, cmd,
-          key: List.first(different_slot_keys),
-          compute_hash_tag: true
-        )
+        Cluster.command(config, cmd, List.first(different_slot_keys), compute_hash_tag: true)
 
       assert match?({:error, _}, result)
 

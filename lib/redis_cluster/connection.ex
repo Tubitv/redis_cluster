@@ -6,14 +6,18 @@ defmodule RedisCluster.Connection do
   This must be done per connection, not node.
   """
 
+  alias RedisCluster.Configuration
+
   @doc false
-  @spec start_link({role :: :master | :replica, conn_opts :: Keyword.t()}) :: {:ok, pid()}
-  def start_link({role, conn_opts}) do
-    {:ok, pid} = Redix.start_link(conn_opts)
+  @spec start_link(
+          {role :: :master | :replica, config :: Configuration.t(), conn_opts :: Keyword.t()}
+        ) :: {:ok, pid()}
+  def start_link({role, config, conn_opts}) do
+    {:ok, pid} = config.redis_module.start_link(conn_opts)
 
     _ =
       if role == :replica do
-        Redix.command!(pid, ["READONLY"])
+        config.redis_module.command!(pid, ["READONLY"])
       end
 
     {:ok, pid}
