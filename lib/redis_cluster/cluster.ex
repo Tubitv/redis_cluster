@@ -273,12 +273,10 @@ defmodule RedisCluster.Cluster do
 
   def set_many_async(config, pairs, opts) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
-    max_concurrency = Keyword.get(opts, :max_concurrency) || System.schedulers_online()
-    task_opts = [max_concurrency: max_concurrency, ordered: false]
 
     pairs
     |> create_set_cmds(config, opts)
-    |> run_async_commands_by_conn(config, task_opts)
+    |> run_async_commands_by_conn(config, opts)
     |> Enum.reject(&match?({:ok, _}, &1))
     |> case do
       [] -> :ok
@@ -354,9 +352,7 @@ defmodule RedisCluster.Cluster do
   def get_many_async(config, keys, opts) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
     role = Keyword.get(opts, :role, :master)
-    max_concurrency = Keyword.get(opts, :max_concurrency) || System.schedulers_online()
     keys = Enum.map(keys, &to_string/1)
-    task_opts = [max_concurrency: max_concurrency, ordered: false]
 
     values_by_key =
       keys
@@ -369,7 +365,7 @@ defmodule RedisCluster.Cluster do
             values when is_list(values) -> Enum.zip(key_batch, values)
           end
         end,
-        task_opts
+        opts
       )
       |> Stream.flat_map(fn
         {:ok, values} ->
@@ -453,9 +449,6 @@ defmodule RedisCluster.Cluster do
   end
 
   def delete_many_async(config, keys, opts) when is_list(keys) do
-    max_concurrency = Keyword.get(opts, :max_concurrency) || System.schedulers_online()
-    task_opts = [max_concurrency: max_concurrency, ordered: false]
-
     opts = Keyword.merge([compute_hash_tag: true], opts)
     role = :master
 
@@ -472,7 +465,7 @@ defmodule RedisCluster.Cluster do
 
       {conn, cmds}
     end
-    |> run_async_commands_by_conn(config, task_opts)
+    |> run_async_commands_by_conn(config, opts)
     |> process_del_responses(config, role, keys)
   end
 
@@ -560,9 +553,6 @@ defmodule RedisCluster.Cluster do
     end)
   end
 
-  @spec broadcast(RedisCluster.Configuration.t(), [[binary()]]) :: [
-          {binary(), non_neg_integer(), any()}
-        ]
   @doc """
   Sends the given pipeline to all nodes in the cluster.
   May filter on a specific role if desired, defaults to all nodes.
@@ -570,6 +560,7 @@ defmodule RedisCluster.Cluster do
   Note that this sends a pipeline instead of a single command.
   You can issue as many commands as you like and get the raw results back.
   The pipelines are sent to each node sequentially, so this may take some time.
+  If you want to send the commands in parallel, use `broadcast_async/3` instead.
   This is useful for debugging with commands like `DBSIZE` or `INFO MEMORY`.
   Be sure to only send commands that are safe to run on any node.
 
@@ -580,7 +571,7 @@ defmodule RedisCluster.Cluster do
       - `:replica` - Query the replica nodes.
   """
   @spec broadcast(Configuration.t(), pipeline(), Keyword.t()) ::
-          [{host :: String.t(), port :: non_neg_integer(), result :: any()}]
+          [{host :: String.t(), port :: non_neg_integer(), result :: [any()]}]
   def broadcast(config, commands, opts \\ []) do
     role_selector = Keyword.get(opts, :role, :any)
 
@@ -593,6 +584,31 @@ defmodule RedisCluster.Cluster do
     end
   end
 
+  @doc """
+  Similar to `broadcast/3` but uses a task to send the commands in parallel.
+
+  Options:
+    * `:max_concurrency` - The maximum number of concurrent tasks to run (default `System.schedulers_online()`).
+    * `:role` - The role to use when querying the cluster. Possible values are:
+      - `:any` - Query any node (default).
+      - `:master` - Query the master nodes.
+      - `:replica` - Query the replica nodes.
+  """
+  @spec broadcast_async(Configuration.t(), pipeline(), Keyword.t()) ::
+          Enumerable.t()
+  def broadcast_async(config, commands, opts \\ []) do
+    role_selector = Keyword.get(opts, :role, :any)
+
+    commands_by_conn =
+      for {_mod, _lo, _hi, role, host, port} <- HashSlots.all_slots(config),
+          role_selector == :any or role == role_selector do
+        conn = RedisCluster.Pool.get_conn(config, host, port)
+        {conn, commands}
+      end
+
+    run_async_commands_by_conn(commands_by_conn, config, opts)
+  end
+
   ## Helpers
 
   @spec run_async_commands_by_conn(
@@ -600,7 +616,10 @@ defmodule RedisCluster.Cluster do
           Configuration.t(),
           task_opts :: Keyword.t()
         ) :: Enumerable.t()
-  defp run_async_commands_by_conn(commands_by_conn, config, task_opts) do
+  defp run_async_commands_by_conn(commands_by_conn, config, opts) do
+    max_concurrency = Keyword.get(opts, :max_concurrency) || System.schedulers_online()
+    task_opts = [max_concurrency: max_concurrency, ordered: false]
+
     commands_by_conn
     |> Task.async_stream(
       fn {conn, cmds} ->
