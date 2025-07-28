@@ -99,8 +99,11 @@ defmodule RedisCluster.AskTest do
       end)
 
       result =
-        RedisCluster.Cluster.pipeline(config, [["GET", "key1"], ["SET", "key2", "value2"]],
-          key: "key1"
+        RedisCluster.Cluster.pipeline(
+          config,
+          [["GET", "key1"], ["SET", "key2", "value2"]],
+          "key1",
+          []
         )
 
       assert result == ["value1", "OK"]
@@ -122,8 +125,11 @@ defmodule RedisCluster.AskTest do
       end)
 
       result =
-        RedisCluster.Cluster.pipeline(config, [["GET", "key1"], ["SET", "key2", "value2"]],
-          key: "key1"
+        RedisCluster.Cluster.pipeline(
+          config,
+          [["GET", "key1"], ["SET", "key2", "value2"]],
+          "key1",
+          []
         )
 
       assert result == ["value1", "OK"]
