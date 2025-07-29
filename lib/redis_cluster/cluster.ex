@@ -297,6 +297,7 @@ defmodule RedisCluster.Cluster do
     * `:role` - The role to use when querying the cluster. Possible values are:
       - `:master` - Query the master node (default).
       - `:replica` - Query a replica node.
+      - `:any` - Query any node.
   """
   @spec get_many(Configuration.t(), [key()], Keyword.t()) :: [String.t() | nil]
   def get_many(config, keys, opts \\ [])
@@ -341,6 +342,7 @@ defmodule RedisCluster.Cluster do
     * `:role` - The role to use when querying the cluster. Possible values are:
       - `:master` - Query the master node (default).
       - `:replica` - Query a replica node.
+      - `:any` - Query any node.
   """
   @spec get_many_async(Configuration.t(), [key()], Keyword.t()) :: [String.t() | nil]
   def get_many_async(config, keys, opts \\ [])
@@ -489,6 +491,7 @@ defmodule RedisCluster.Cluster do
     * `:role` - The role to use when querying the cluster. Possible values are:
       - `:master` - Query the master node (default).
       - `:replica` - Query a replica node.
+      - `:any` - Query any node.
   """
   @spec command(Configuration.t(), command(), key() | :any, Keyword.t()) ::
           term() | {:error, any()}
@@ -532,6 +535,7 @@ defmodule RedisCluster.Cluster do
     * `:role` - The role to use when querying the cluster. Possible values are:
       - `:master` - Query the master node (default).
       - `:replica` - Query a replica node.
+      - `:any` - Query any node.
   """
   @spec pipeline(Configuration.t(), pipeline(), key() | :any, Keyword.t()) ::
           [term()] | {:error, any()}
