@@ -699,16 +699,23 @@ defmodule RedisCluster.Cluster do
 
       error = {:error, %Redix.Error{message: "MOVED" <> rest}}, _acc ->
         # If we get a MOVED error, we need to rediscover the cluster.
-        [slot, host] = String.split(rest, " ", parts: 2, trim: true)
+        {expected_slot, host, port} = parse_redirect(rest, config.host)
 
-        Logger.warning("Received MOVED error with delete_many, rediscovering cluster.",
-          host: host,
-          slot: slot,
+        metadata = %{
           role: role,
-          all_keys: keys,
-          config_name: config.name,
+          expected_slot: expected_slot,
+          expected_host: "#{host}:#{port}",
+          keys: List.wrap(keys),
+          slot: hash_slot(keys, []),
+          config_name: config.name
+        }
+
+        Logger.warning("Received MOVED redirect with delete_many, rediscovering cluster.",
+          metadata: metadata,
           table: HashSlots.all_slots_as_table(config)
         )
+
+        Telemetry.moved_redirect(metadata)
 
         rediscover(config)
         {:halt, error}
@@ -955,14 +962,21 @@ defmodule RedisCluster.Cluster do
   defp maybe_rediscover(config, errors) do
     info =
       for %Redix.Error{message: "MOVED" <> rest} <- errors do
-        String.split(rest, " ", parts: 2, trim: true)
+        parse_redirect(rest, config.host)
       end
 
     if info != [] do
-      Logger.warning("Some commands failed, rediscovering cluster.",
+      metadata = %{
         info: info,
+        errors: errors,
         config_name: config.name,
         table: HashSlots.all_slots_as_table(config)
+      }
+
+      Telemetry.moved_redirect(metadata)
+
+      Logger.warning("Some commands failed with MOVED redirect, rediscovering cluster.",
+        metadata: metadata
       )
 
       rediscover(config)
