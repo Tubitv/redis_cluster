@@ -390,6 +390,21 @@ defmodule RedisCluster.ClusterTest do
       assert [nil, nil, nil] = Cluster.get_many(config, Map.keys(pairs))
     end
 
+    test "should handle the multi-key operations with noreply", context do
+      config = context[:config]
+
+      pairs = %{
+        "noreply-multi-key-test-1" => "value1",
+        "noreply-multi-key-test-2" => "value2",
+        "noreply-multi-key-test-3" => "value3"
+      }
+
+      assert :ok = Cluster.set_many(config, pairs, reply: false)
+      assert ~w[value1 value2 value3] = Cluster.get_many(config, Map.keys(pairs))
+      assert :ok = Cluster.delete_many(config, Map.keys(pairs), reply: false)
+      assert [nil, nil, nil] = Cluster.get_many(config, Map.keys(pairs))
+    end
+
     test "should handle multi-key operations with an empty list", context do
       config = context[:config]
 
@@ -534,7 +549,9 @@ defmodule RedisCluster.ClusterTest do
       # Clean up
       Cluster.delete_many(config, Map.keys(pairs))
     end
+  end
 
+  describe "async multi-key operations" do
     test "should handle multi-key operations in parallel", context do
       config = context[:config]
 
@@ -548,6 +565,45 @@ defmodule RedisCluster.ClusterTest do
       assert ~w[value1 value2 value3] = Cluster.get_many_async(config, Map.keys(pairs))
       assert 3 = Cluster.delete_many_async(config, Map.keys(pairs))
       assert [nil, nil, nil] = Cluster.get_many_async(config, Map.keys(pairs))
+    end
+
+    test "should handle multi-key operations in parallel with noreply", context do
+      config = context[:config]
+
+      pairs = %{
+        "parallel-multi-key-noreply-1" => "value1",
+        "parallel-multi-key-noreply-2" => "value2",
+        "parallel-multi-key-noreply-3" => "value3"
+      }
+
+      assert :ok = Cluster.set_many_async(config, pairs, reply: false)
+      assert ~w[value1 value2 value3] = Cluster.get_many_async(config, Map.keys(pairs))
+      assert :ok = Cluster.delete_many_async(config, Map.keys(pairs), reply: false)
+      assert [nil, nil, nil] = Cluster.get_many_async(config, Map.keys(pairs))
+    end
+
+    test "should handle multi-key operations in parallel with hash tags and noreply", context do
+      config = context[:config]
+
+      pairs = %{
+        "parallel-multi-key-noreply-1{hashtag}" => "value1",
+        "parallel-multi-key-noreply-2{hashtag}" => "value2",
+        "parallel-multi-key-noreply-3{hashtag}" => "value3"
+      }
+
+      assert :ok = Cluster.set_many_async(config, pairs, reply: false, compute_hash_tag: true)
+
+      assert ~w[value1 value2 value3] =
+               Cluster.get_many_async(config, Map.keys(pairs), compute_hash_tag: true)
+
+      assert :ok =
+               Cluster.delete_many_async(config, Map.keys(pairs),
+                 reply: false,
+                 compute_hash_tag: true
+               )
+
+      assert [nil, nil, nil] =
+               Cluster.get_many_async(config, Map.keys(pairs), compute_hash_tag: true)
     end
 
     test "should handle multi-key operations in parallel with hash tags", context do

@@ -205,6 +205,7 @@ defmodule RedisCluster.Cluster do
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
     * `:expire_seconds` - The number of seconds until the key expires.
     * `:expire_milliseconds` - The number of milliseconds until the key expires.
+    * `:reply` - Whether to return replies from the server. (default `true`)
     * `:set` - Controls when the key should be set. Possible values are:
       - `:always` - Always set the key (default).
       - `:only_overwrite` - Only set the key if it already exists.
@@ -232,13 +233,24 @@ defmodule RedisCluster.Cluster do
 
   def set_many(config, pairs, opts) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
+    reply? = Keyword.get(opts, :reply, true)
 
     pairs
     |> create_set_cmds(config, opts)
     |> Enum.map(fn {conn, cmds} ->
-      config.redis_module.pipeline(conn, cmds)
+      if reply? do
+        config.redis_module.pipeline(conn, cmds)
+      else
+        config.redis_module.noreply_pipeline(conn, cmds)
+      end
     end)
-    |> Enum.reject(&match?({:ok, _}, &1))
+    |> Enum.reject(fn result ->
+      if reply? do
+        match?({:ok, _}, result)
+      else
+        result == :ok
+      end
+    end)
     |> case do
       [] -> :ok
       errors -> maybe_rediscover(config, errors)
@@ -252,6 +264,7 @@ defmodule RedisCluster.Cluster do
     * `:max_concurrency` - The maximum number of concurrent tasks to run (default `System.schedulers_online()`).
     * `:timeout` - The max time in milliseconds to wait for each task to complete (default `5000`).
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
+    * `:reply` - Whether to return replies from the server. (default `true`)
   """
   @spec set_many_async(Configuration.t(), pairs(), Keyword.t()) :: :ok | [{:error, any()}]
   def set_many_async(config, pairs, opts \\ [])
@@ -275,11 +288,18 @@ defmodule RedisCluster.Cluster do
 
   def set_many_async(config, pairs, opts) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
+    reply? = Keyword.get(opts, :reply, true)
 
     pairs
     |> create_set_cmds(config, opts)
     |> run_async_commands_by_conn(config, opts)
-    |> Enum.reject(&match?({:ok, _}, &1))
+    |> Enum.reject(fn result ->
+      if reply? do
+        match?({:ok, _}, result)
+      else
+        result == :ok
+      end
+    end)
     |> case do
       [] -> :ok
       errors -> maybe_rediscover(config, errors)
@@ -413,8 +433,9 @@ defmodule RedisCluster.Cluster do
 
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
+    * `:reply` - Whether to return replies from the server. (default `true`)
   """
-  @spec delete_many(Configuration.t(), [key()], Keyword.t()) :: integer() | {:error, any()}
+  @spec delete_many(Configuration.t(), [key()], Keyword.t()) :: integer() | :ok | {:error, any()}
   def delete_many(config, keys, opts \\ [])
 
   def delete_many(_config, [], _opts) do
@@ -427,6 +448,7 @@ defmodule RedisCluster.Cluster do
 
   def delete_many(config, keys, opts) when is_list(keys) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
+    reply? = Keyword.get(opts, :reply, true)
     role = :master
 
     keys_by_conn =
@@ -440,9 +462,13 @@ defmodule RedisCluster.Cluster do
     for {conn, keys} <- keys_by_conn do
       cmds = Enum.map(keys, &["DEL", &1])
 
-      config.redis_module.pipeline(conn, cmds)
+      if reply? do
+        config.redis_module.pipeline(conn, cmds)
+      else
+        config.redis_module.noreply_pipeline(conn, cmds)
+      end
     end
-    |> process_del_responses(config, role, keys)
+    |> process_del_responses(config, role, keys, reply?)
   end
 
   @doc """
@@ -452,8 +478,10 @@ defmodule RedisCluster.Cluster do
     * `:max_concurrency` - The maximum number of concurrent tasks to run (default `System.schedulers_online()`).
     * `:timeout` - The max time in milliseconds to wait for each task to complete (default `5000`).
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
+    * `:reply` - Whether to return replies from the server. (default `true`)
   """
-  @spec delete_many_async(Configuration.t(), [key()], Keyword.t()) :: integer() | {:error, any()}
+  @spec delete_many_async(Configuration.t(), [key()], Keyword.t()) ::
+          integer() | :ok | {:error, any()}
   def delete_many_async(config, keys, opts \\ [])
 
   def delete_many_async(_config, [], _opts) do
@@ -467,6 +495,7 @@ defmodule RedisCluster.Cluster do
   def delete_many_async(config, keys, opts) when is_list(keys) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
     role = :master
+    reply? = Keyword.get(opts, :reply, true)
 
     keys_by_conn =
       keys
@@ -482,7 +511,7 @@ defmodule RedisCluster.Cluster do
       {conn, cmds}
     end
     |> run_async_commands_by_conn(config, opts)
-    |> process_del_responses(config, role, keys)
+    |> process_del_responses(config, role, keys, reply?)
   end
 
   @deprecated "Use `command/4` instead."
@@ -666,6 +695,7 @@ defmodule RedisCluster.Cluster do
   defp run_async_commands_by_conn(commands_by_conn, config, opts) do
     max_concurrency = Keyword.get(opts, :max_concurrency) || System.schedulers_online()
     timeout = Keyword.get(opts, :timeout, 5000)
+    reply? = Keyword.get(opts, :reply, true)
 
     task_opts = [
       max_concurrency: max_concurrency,
@@ -678,7 +708,11 @@ defmodule RedisCluster.Cluster do
     commands_by_conn
     |> Task.async_stream(
       fn {conn, cmds} ->
-        config.redis_module.pipeline(conn, cmds)
+        if reply? do
+          config.redis_module.pipeline(conn, cmds)
+        else
+          config.redis_module.noreply_pipeline(conn, cmds)
+        end
       end,
       task_opts
     )
@@ -725,9 +759,10 @@ defmodule RedisCluster.Cluster do
           results :: Enumerable.t(),
           Configuration.t(),
           role(),
-          [key()]
-        ) :: integer() | {:error, any()}
-  defp process_del_responses(results, config, role, keys) do
+          [key()],
+          reply? :: boolean()
+        ) :: integer() | :ok | {:error, any()}
+  defp process_del_responses(results, config, role, keys, _reply? = true) do
     Enum.reduce_while(results, 0, fn
       {:ok, results}, acc ->
         {:cont, acc + Enum.sum(results)}
@@ -758,6 +793,15 @@ defmodule RedisCluster.Cluster do
       _error, acc ->
         {:cont, acc}
     end)
+  end
+
+  defp process_del_responses(list, _config, _role, _keys, _reply? = false) when is_list(list) do
+    :ok
+  end
+
+  defp process_del_responses(stream, _config, _role, _keys, _reply? = false) do
+    Stream.run(stream)
+    :ok
   end
 
   defp expire_option(opts) do
