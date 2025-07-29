@@ -201,6 +201,9 @@ defmodule RedisCluster.Cluster do
   This means the function will be slower than sending commands in parallel.
   If you need to set many keys in parallel, consider using `set_many_async/3` instead.
 
+  You may instruct the server to not return replies by setting `:reply` to `false`.
+  This can save on bandwidth, reduce latency, and reduce processing on the server.
+
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
     * `:expire_seconds` - The number of seconds until the key expires.
@@ -430,6 +433,9 @@ defmodule RedisCluster.Cluster do
   Since this is a write command, it will always target master nodes.
 
   Stops deleting keys if a `MOVED` error is encountered.
+
+  You may instruct the server to not return replies by setting `:reply` to `false`.
+  This can save on bandwidth, reduce latency, and reduce processing on the server.
 
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
