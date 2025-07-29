@@ -237,6 +237,55 @@ defmodule RedisCluster.ClusterTest do
       assert [nil, "OK", "value", 1] = result
       assert nil == Cluster.get(config, key)
     end
+
+    test "should handle generic command to any node", context do
+      config = context[:config]
+
+      assert "PONG" = Cluster.command(config, ["PING"], :any, [])
+    end
+
+    test "should handle generic command to master node", context do
+      config = context[:config]
+
+      result = Cluster.command(config, ["ROLE"], :any, role: :master)
+
+      assert match?(
+               ["master", _replication_offset, _replicas = [_, _, _]],
+               result
+             )
+    end
+
+    test "should handle generic command to replica node", context do
+      config = context[:config]
+
+      result = Cluster.command(config, ["ROLE"], :any, role: :replica)
+
+      assert match?(
+               ["slave", "127.0.0.1", _port, "connected", _replication_offset],
+               result
+             )
+    end
+
+    test "should handle generic pipeline to any node", context do
+      config = context[:config]
+
+      assert ["PONG", "PONG", "PONG"] =
+               Cluster.pipeline(config, [["PING"], ["PING"], ["PING"]], :any, [])
+    end
+
+    test "should handle generic pipeline to master node", context do
+      config = context[:config]
+
+      assert ["PONG", ["master", _replication_offset, _replicas = [_, _, _]]] =
+               Cluster.pipeline(config, [["PING"], ["ROLE"]], :any, role: :master)
+    end
+
+    test "should handle generic pipeline to replica node", context do
+      config = context[:config]
+
+      assert ["PONG", ["slave", "127.0.0.1", _port, "connected", _replication_offset]] =
+               Cluster.pipeline(config, [["PING"], ["ROLE"]], :any, role: :replica)
+    end
   end
 
   describe "broadcast operations" do
