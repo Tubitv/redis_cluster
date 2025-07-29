@@ -571,7 +571,10 @@ defmodule RedisCluster.Cluster do
       - `:replica` - Query the replica nodes.
   """
   @spec broadcast(Configuration.t(), pipeline(), Keyword.t()) ::
-          [{host :: String.t(), port :: non_neg_integer(), result :: [any()]}]
+          [
+            {host :: String.t(), port :: non_neg_integer(), role :: role(),
+             result :: {:ok, [Redix.Protocol.redis_value()]} | {:error, any()}}
+          ]
   def broadcast(config, commands, opts \\ []) do
     role_selector = Keyword.get(opts, :role, :any)
 
@@ -580,12 +583,14 @@ defmodule RedisCluster.Cluster do
       conn = RedisCluster.Pool.get_conn(config, host, port)
       result = config.redis_module.pipeline(conn, commands)
 
-      {host, port, result}
+      {host, port, role, result}
     end
   end
 
   @doc """
   Similar to `broadcast/3` but uses a task to send the commands in parallel.
+
+  The results are returned as a Stream.
 
   Options:
     * `:max_concurrency` - The maximum number of concurrent tasks to run (default `System.schedulers_online()`).
@@ -598,15 +603,29 @@ defmodule RedisCluster.Cluster do
           Enumerable.t()
   def broadcast_async(config, commands, opts \\ []) do
     role_selector = Keyword.get(opts, :role, :any)
+    max_concurrency = Keyword.get(opts, :max_concurrency) || System.schedulers_online()
+    task_opts = [max_concurrency: max_concurrency, ordered: false]
 
-    commands_by_conn =
+    command_info =
       for {_mod, _lo, _hi, role, host, port} <- HashSlots.all_slots(config),
           role_selector == :any or role == role_selector do
         conn = RedisCluster.Pool.get_conn(config, host, port)
-        {conn, commands}
+        {host, port, role, conn, commands}
       end
 
-    run_async_commands_by_conn(commands_by_conn, config, opts)
+    command_info
+    |> Task.async_stream(
+      fn {host, port, role, conn, cmds} ->
+        result = config.redis_module.pipeline(conn, cmds)
+        {host, port, role, result}
+      end,
+      task_opts
+    )
+    # Unwrap the nested {:ok, ...} tuples.
+    |> Stream.map(fn
+      {:ok, value} -> value
+      other -> other
+    end)
   end
 
   ## Helpers
