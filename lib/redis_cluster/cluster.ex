@@ -71,6 +71,7 @@ defmodule RedisCluster.Cluster do
     * `:role` - The role to use when querying the cluster. Possible values are:
       - `:master` - Query the master node (default).
       - `:replica` - Query a replica node.
+      - `:any` - Query any node.
   """
   @spec get(Configuration.t(), key(), Keyword.t()) :: binary() | nil | {:error, any()}
   def get(config, key, opts \\ []) do
@@ -245,10 +246,11 @@ defmodule RedisCluster.Cluster do
   end
 
   @doc """
-  Similar to `set_many/3` but uses a task to set the values in parallel.
+  Similar to `set_many/3` but uses `Task.async_stream/3` to set the values in parallel.
 
   Options:
     * `:max_concurrency` - The maximum number of concurrent tasks to run (default `System.schedulers_online()`).
+    * `:timeout` - The max time in milliseconds to wait for each task to complete (default `5000`).
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
   """
   @spec set_many_async(Configuration.t(), pairs(), Keyword.t()) :: :ok | [{:error, any()}]
@@ -334,10 +336,11 @@ defmodule RedisCluster.Cluster do
   end
 
   @doc """
-  Similar to `get_many/3` but uses a task to fetch the values in parallel.
+  Similar to `get_many/3` but uses `Task.async_stream/3` to fetch the values in parallel.
 
   Options:
     * `:max_concurrency` - The maximum number of concurrent tasks to run (default `System.schedulers_online()`).
+    * `:timeout` - The max time in milliseconds to wait for each task to complete (default `5000`).
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
     * `:role` - The role to use when querying the cluster. Possible values are:
       - `:master` - Query the master node (default).
@@ -355,6 +358,16 @@ defmodule RedisCluster.Cluster do
     opts = Keyword.merge([compute_hash_tag: true], opts)
     role = Keyword.get(opts, :role, :master)
     keys = Enum.map(keys, &to_string/1)
+    max_concurrency = Keyword.get(opts, :max_concurrency) || System.schedulers_online()
+    timeout = Keyword.get(opts, :timeout, 5000)
+
+    task_opts = [
+      max_concurrency: max_concurrency,
+      ordered: false,
+      timeout: timeout,
+      on_timeout: :kill_task,
+      zip_input_on_exit: true
+    ]
 
     values_by_key =
       keys
@@ -367,7 +380,7 @@ defmodule RedisCluster.Cluster do
             values when is_list(values) -> Enum.zip(key_batch, values)
           end
         end,
-        opts
+        task_opts
       )
       |> Stream.flat_map(fn
         {:ok, values} ->
@@ -433,10 +446,11 @@ defmodule RedisCluster.Cluster do
   end
 
   @doc """
-  Similar to `delete_many/3` but uses a task to delete the keys in parallel.
+  Similar to `delete_many/3` but uses `Task.async_stream/3` to delete the keys in parallel.
 
   Options:
     * `:max_concurrency` - The maximum number of concurrent tasks to run (default `System.schedulers_online()`).
+    * `:timeout` - The max time in milliseconds to wait for each task to complete (default `5000`).
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
   """
   @spec delete_many_async(Configuration.t(), [key()], Keyword.t()) :: integer() | {:error, any()}
@@ -592,13 +606,14 @@ defmodule RedisCluster.Cluster do
   end
 
   @doc """
-  Similar to `broadcast/3` but uses a task to send the commands in parallel.
+  Similar to `broadcast/3` but uses `Task.async_stream/3` to send the commands in parallel.
 
   The results are returned as a Stream. You can collect the results into a list.
   Or you can take the first N items. Be aware ordering is not guaranteed.
 
   Options:
     * `:max_concurrency` - The maximum number of concurrent tasks to run (default `System.schedulers_online()`).
+    * `:timeout` - The max time in milliseconds to wait for each task to complete (default `5000`).
     * `:role` - The role to use when querying the cluster. Possible values are:
       - `:any` - Query any node (default).
       - `:master` - Query the master nodes.
@@ -609,7 +624,15 @@ defmodule RedisCluster.Cluster do
   def broadcast_async(config, commands, opts \\ []) do
     role_selector = Keyword.get(opts, :role, :any)
     max_concurrency = Keyword.get(opts, :max_concurrency) || System.schedulers_online()
-    task_opts = [max_concurrency: max_concurrency, ordered: false]
+    timeout = Keyword.get(opts, :timeout, 5000)
+
+    task_opts = [
+      max_concurrency: max_concurrency,
+      ordered: false,
+      timeout: timeout,
+      on_timeout: :kill_task,
+      zip_input_on_exit: true
+    ]
 
     command_info =
       for {_mod, _lo, _hi, role, host, port} <- HashSlots.all_slots(config),
@@ -642,7 +665,15 @@ defmodule RedisCluster.Cluster do
         ) :: Enumerable.t()
   defp run_async_commands_by_conn(commands_by_conn, config, opts) do
     max_concurrency = Keyword.get(opts, :max_concurrency) || System.schedulers_online()
-    task_opts = [max_concurrency: max_concurrency, ordered: false]
+    timeout = Keyword.get(opts, :timeout, 5000)
+
+    task_opts = [
+      max_concurrency: max_concurrency,
+      ordered: false,
+      timeout: timeout,
+      on_timeout: :kill_task,
+      zip_input_on_exit: true
+    ]
 
     commands_by_conn
     |> Task.async_stream(
