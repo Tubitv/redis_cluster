@@ -590,7 +590,8 @@ defmodule RedisCluster.Cluster do
   @doc """
   Similar to `broadcast/3` but uses a task to send the commands in parallel.
 
-  The results are returned as a Stream.
+  The results are returned as a Stream. You can collect the results into a list.
+  Or you can take the first N items. Be aware ordering is not guaranteed.
 
   Options:
     * `:max_concurrency` - The maximum number of concurrent tasks to run (default `System.schedulers_online()`).

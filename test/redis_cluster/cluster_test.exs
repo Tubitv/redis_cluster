@@ -274,8 +274,8 @@ defmodule RedisCluster.ClusterTest do
 
       assert [
                {"127.0.0.1", _, :master, {:ok, [_, "" <> _]}},
-               {"127.0.0.1", _, _, {:ok, [_, "" <> _]}},
-               {"127.0.0.1", _, _, {:ok, [_, "" <> _]}}
+               {"127.0.0.1", _, :master, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", _, :master, {:ok, [_, "" <> _]}}
              ] = Enum.sort(result)
     end
 
