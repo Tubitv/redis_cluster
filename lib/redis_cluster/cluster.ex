@@ -71,6 +71,7 @@ defmodule RedisCluster.Cluster do
     * `:role` - The role to use when querying the cluster. Possible values are:
       - `:master` - Query the master node (default).
       - `:replica` - Query a replica node.
+      - `:any` - Query any node.
   """
   @spec get(Configuration.t(), key(), Keyword.t()) :: binary() | nil | {:error, any()}
   def get(config, key, opts \\ []) do
@@ -131,7 +132,7 @@ defmodule RedisCluster.Cluster do
 
     Telemetry.execute_command(command, metadata, fn ->
       case command_with_retry(config, role, key, command, opts) do
-        {:error, _} = error -> error
+        error = {:error, _} -> error
         "OK" -> :ok
         other -> other
       end
@@ -198,11 +199,20 @@ defmodule RedisCluster.Cluster do
 
   Commands are sent sequentially for simplicity.
   This means the function will be slower than sending commands in parallel.
+  If you need to set many keys in parallel, consider using `set_many_async/3` instead.
+
+  You may instruct the server to not return replies by setting `:reply` to `false`.
+  This can save on bandwidth, reduce latency, and reduce processing on the server.
+  Be aware that you won't know if the commands were successful or not. If you are using
+  `:only_new` or `:only_overwrite`, you also won't know which keys were set.
+  Furthermore, if you follow up with `GET` commands for the same keys, the `SET` commands
+  may not have been processed yet.
 
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
     * `:expire_seconds` - The number of seconds until the key expires.
     * `:expire_milliseconds` - The number of milliseconds until the key expires.
+    * `:reply` - Whether to return replies from the server. (default `true`)
     * `:set` - Controls when the key should be set. Possible values are:
       - `:always` - Always set the key (default).
       - `:only_overwrite` - Only set the key if it already exists.
@@ -230,32 +240,79 @@ defmodule RedisCluster.Cluster do
 
   def set_many(config, pairs, opts) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
-    role = :master
+    reply? = Keyword.get(opts, :reply, true)
+    commands_by_conn = create_set_cmds_by_conn(pairs, config, opts)
+    redis = config.redis_module
 
-    # Create a map of conn => [{key, value}, ...]
-    pairs_by_conn =
-      pairs
-      |> Map.new(fn {k, v} -> {to_string(k), v} end)
-      |> Enum.group_by(fn {k, _v} ->
-        slot = Key.hash_slot(k, opts)
-        get_conn(config, slot, role)
-      end)
+    # Run the commands and collect the errors in a single loop.
+    errors =
+      if reply? do
+        for {conn, cmds} <- commands_by_conn,
+            response = redis.pipeline(conn, cmds),
+            not match?({:ok, _}, response) do
+          response
+        end
+      else
+        for {conn, cmds} <- commands_by_conn,
+            response = redis.noreply_pipeline(conn, cmds),
+            response != :ok do
+          response
+        end
+      end
 
-    for {conn, pairs} <- pairs_by_conn do
-      # Create a list of SET commands with the requested options.
-      cmds =
-        Enum.map(pairs, fn {k, v} ->
-          List.flatten([
-            ["SET", k, v],
-            expire_option(opts),
-            write_option(opts)
-          ])
-        end)
-
-      config.redis_module.pipeline(conn, cmds)
+    case errors do
+      [] -> :ok
+      errors -> maybe_rediscover(config, errors)
     end
-    |> Enum.reject(&match?({:ok, _}, &1))
-    |> case do
+  end
+
+  @doc """
+  Similar to `set_many/3` but uses `Task.async_stream/3` to set the values in parallel.
+
+  Options:
+    * `:max_concurrency` - The maximum number of concurrent tasks to run (default `System.schedulers_online()`).
+    * `:timeout` - The max time in milliseconds to wait for each task to complete (default `5000`).
+    * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
+    * `:reply` - Whether to return replies from the server. (default `true`)
+  """
+  @spec set_many_async(Configuration.t(), pairs(), Keyword.t()) :: :ok | [{:error, any()}]
+  def set_many_async(config, pairs, opts \\ [])
+
+  def set_many_async(_config, pairs, _opts)
+      when pairs == []
+      when is_map(pairs) and map_size(pairs) == 0 do
+    :ok
+  end
+
+  def set_many_async(config, [{k, v}], opts) do
+    opts = Keyword.merge([compute_hash_tag: true], opts)
+    set(config, k, v, opts)
+  end
+
+  def set_many_async(config, map, opts) when is_map(map) and map_size(map) == 1 do
+    [{k, v}] = Map.to_list(map)
+    opts = Keyword.merge([compute_hash_tag: true], opts)
+    set(config, k, v, opts)
+  end
+
+  def set_many_async(config, pairs, opts) do
+    opts = Keyword.merge([compute_hash_tag: true], opts)
+    reply? = Keyword.get(opts, :reply, true)
+    commands_by_conn = create_set_cmds_by_conn(pairs, config, opts)
+
+    # Run the commands and collect the errors.
+    errors =
+      if reply? do
+        commands_by_conn
+        |> run_async_commands_by_conn(config, opts)
+        |> Enum.reject(&match?({:ok, _}, &1))
+      else
+        commands_by_conn
+        |> run_async_commands_by_conn(config, opts)
+        |> Enum.reject(&(&1 == :ok))
+      end
+
+    case errors do
       [] -> :ok
       errors -> maybe_rediscover(config, errors)
     end
@@ -274,6 +331,7 @@ defmodule RedisCluster.Cluster do
     * `:role` - The role to use when querying the cluster. Possible values are:
       - `:master` - Query the master node (default).
       - `:replica` - Query a replica node.
+      - `:any` - Query any node.
   """
   @spec get_many(Configuration.t(), [key()], Keyword.t()) :: [String.t() | nil]
   def get_many(config, keys, opts \\ [])
@@ -310,6 +368,69 @@ defmodule RedisCluster.Cluster do
   end
 
   @doc """
+  Similar to `get_many/3` but uses `Task.async_stream/3` to fetch the values in parallel.
+
+  Options:
+    * `:max_concurrency` - The maximum number of concurrent tasks to run (default `System.schedulers_online()`).
+    * `:timeout` - The max time in milliseconds to wait for each task to complete (default `5000`).
+    * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
+    * `:role` - The role to use when querying the cluster. Possible values are:
+      - `:master` - Query the master node (default).
+      - `:replica` - Query a replica node.
+      - `:any` - Query any node.
+  """
+  @spec get_many_async(Configuration.t(), [key()], Keyword.t()) :: [String.t() | nil]
+  def get_many_async(config, keys, opts \\ [])
+
+  def get_many_async(_config, [], _opts) do
+    []
+  end
+
+  def get_many_async(config, keys, opts) do
+    opts = Keyword.merge([compute_hash_tag: true], opts)
+    role = Keyword.get(opts, :role, :master)
+    keys = Enum.map(keys, &to_string/1)
+    max_concurrency = Keyword.get(opts, :max_concurrency) || System.schedulers_online()
+    timeout = Keyword.get(opts, :timeout, 5000)
+
+    task_opts = [
+      max_concurrency: max_concurrency,
+      ordered: false,
+      timeout: timeout,
+      on_timeout: :kill_task,
+      zip_input_on_exit: true
+    ]
+
+    values_by_key =
+      keys
+      |> Enum.uniq()
+      |> Enum.group_by(&Key.hash_slot(&1, opts))
+      |> Task.async_stream(
+        fn {_slot, key_batch} ->
+          case command_with_retry(config, role, key_batch, ["MGET" | key_batch], opts) do
+            {:error, _} -> []
+            values when is_list(values) -> Enum.zip(key_batch, values)
+          end
+        end,
+        task_opts
+      )
+      |> Stream.flat_map(fn
+        {:ok, values} ->
+          values
+
+        {:error, reason} ->
+          Logger.warning("Failed to get values for keys", reason: reason)
+          []
+      end)
+      |> Enum.to_list()
+
+    # Ensures the values are returned in the same order they were requested.
+    for key <- keys do
+      :proplists.get_value(key, values_by_key, nil)
+    end
+  end
+
+  @doc """
   **WARNING**: This command is not a one-to-one mapping to the
   [Redis `DEL` command](https://redis.io/docs/latest/commands/del/).
   See the `set_many/3` function for details why.
@@ -320,10 +441,18 @@ defmodule RedisCluster.Cluster do
 
   Since this is a write command, it will always target master nodes.
 
+  Stops deleting keys if a `MOVED` error is encountered.
+
+  You may instruct the server to not return replies by setting `:reply` to `false`.
+  This can save on bandwidth, reduce latency, and reduce processing on the server.
+  If you follow up with `GET` commands for the same keys, the `DEL` commands may
+  not have been processed yet. This means you may still get a value for the keys.
+
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
+    * `:reply` - Whether to return replies from the server. (default `true`)
   """
-  @spec delete_many(Configuration.t(), [key()], Keyword.t()) :: integer() | {:error, any()}
+  @spec delete_many(Configuration.t(), [key()], Keyword.t()) :: integer() | :ok | {:error, any()}
   def delete_many(config, keys, opts \\ [])
 
   def delete_many(_config, [], _opts) do
@@ -336,44 +465,54 @@ defmodule RedisCluster.Cluster do
 
   def delete_many(config, keys, opts) when is_list(keys) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
-    role = :master
+    reply? = Keyword.get(opts, :reply, true)
+    redis = config.redis_module
 
-    keys_by_conn =
-      keys
-      |> MapSet.new(&to_string/1)
-      |> Enum.group_by(fn key ->
-        slot = Key.hash_slot(key, opts)
-        get_conn(config, slot, role)
-      end)
+    commands_by_conn = create_del_cmds_by_conn(keys, config, opts)
 
-    for {conn, keys} <- keys_by_conn do
-      cmds = Enum.map(keys, &["DEL", &1])
+    responses =
+      if reply? do
+        for {conn, cmds} <- commands_by_conn do
+          redis.pipeline(conn, cmds)
+        end
+      else
+        for {conn, cmds} <- commands_by_conn do
+          redis.noreply_pipeline(conn, cmds)
+        end
+      end
 
-      config.redis_module.pipeline(conn, cmds)
-    end
-    |> Enum.reduce_while(0, fn
-      {:ok, results}, acc ->
-        {:cont, acc + Enum.sum(results)}
+    process_del_responses(responses, config, :master, keys, reply?)
+  end
 
-      error = {:error, %Redix.Error{message: "MOVED" <> rest}}, _acc ->
-        # If we get a MOVED error, we need to rediscover the cluster.
-        [slot, host] = String.split(rest, " ", parts: 2, trim: true)
+  @doc """
+  Similar to `delete_many/3` but uses `Task.async_stream/3` to delete the keys in parallel.
 
-        Logger.warning("Received MOVED error with delete_many, rediscovering cluster.",
-          host: host,
-          slot: slot,
-          role: role,
-          all_keys: keys,
-          config_name: config.name,
-          table: HashSlots.all_slots_as_table(config)
-        )
+  Options:
+    * `:max_concurrency` - The maximum number of concurrent tasks to run (default `System.schedulers_online()`).
+    * `:timeout` - The max time in milliseconds to wait for each task to complete (default `5000`).
+    * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
+    * `:reply` - Whether to return replies from the server. (default `true`)
+  """
+  @spec delete_many_async(Configuration.t(), [key()], Keyword.t()) ::
+          integer() | :ok | {:error, any()}
+  def delete_many_async(config, keys, opts \\ [])
 
-        rediscover(config)
-        {:halt, error}
+  def delete_many_async(_config, [], _opts) do
+    0
+  end
 
-      _error, acc ->
-        {:cont, acc}
-    end)
+  def delete_many_async(config, [key], opts) do
+    delete(config, key, opts)
+  end
+
+  def delete_many_async(config, keys, opts) when is_list(keys) do
+    opts = Keyword.merge([compute_hash_tag: true], opts)
+    reply? = Keyword.get(opts, :reply, true)
+
+    keys
+    |> create_del_cmds_by_conn(config, opts)
+    |> run_async_commands_by_conn(config, opts)
+    |> process_del_responses(config, :master, keys, reply?)
   end
 
   @deprecated "Use `command/4` instead."
@@ -396,6 +535,7 @@ defmodule RedisCluster.Cluster do
     * `:role` - The role to use when querying the cluster. Possible values are:
       - `:master` - Query the master node (default).
       - `:replica` - Query a replica node.
+      - `:any` - Query any node.
   """
   @spec command(Configuration.t(), command(), key() | :any, Keyword.t()) ::
           term() | {:error, any()}
@@ -439,6 +579,7 @@ defmodule RedisCluster.Cluster do
     * `:role` - The role to use when querying the cluster. Possible values are:
       - `:master` - Query the master node (default).
       - `:replica` - Query a replica node.
+      - `:any` - Query any node.
   """
   @spec pipeline(Configuration.t(), pipeline(), key() | :any, Keyword.t()) ::
           [term()] | {:error, any()}
@@ -460,9 +601,6 @@ defmodule RedisCluster.Cluster do
     end)
   end
 
-  @spec broadcast(RedisCluster.Configuration.t(), [[binary()]]) :: [
-          {binary(), non_neg_integer(), any()}
-        ]
   @doc """
   Sends the given pipeline to all nodes in the cluster.
   May filter on a specific role if desired, defaults to all nodes.
@@ -470,6 +608,7 @@ defmodule RedisCluster.Cluster do
   Note that this sends a pipeline instead of a single command.
   You can issue as many commands as you like and get the raw results back.
   The pipelines are sent to each node sequentially, so this may take some time.
+  If you want to send the commands in parallel, use `broadcast_async/3` instead.
   This is useful for debugging with commands like `DBSIZE` or `INFO MEMORY`.
   Be sure to only send commands that are safe to run on any node.
 
@@ -480,20 +619,217 @@ defmodule RedisCluster.Cluster do
       - `:replica` - Query the replica nodes.
   """
   @spec broadcast(Configuration.t(), pipeline(), Keyword.t()) ::
-          [{host :: String.t(), port :: non_neg_integer(), result :: any()}]
+          [
+            {host :: String.t(), port :: non_neg_integer(), role :: role(),
+             result :: {:ok, [Redix.Protocol.redis_value()]} | {:error, any()}}
+          ]
   def broadcast(config, commands, opts \\ []) do
     role_selector = Keyword.get(opts, :role, :any)
+    redis = config.redis_module
 
     for {_mod, _lo, _hi, role, host, port} <- HashSlots.all_slots(config),
         role_selector == :any or role == role_selector do
       conn = RedisCluster.Pool.get_conn(config, host, port)
-      result = config.redis_module.pipeline(conn, commands)
+      result = redis.pipeline(conn, commands)
 
-      {host, port, result}
+      {host, port, role, result}
     end
   end
 
+  @doc """
+  Similar to `broadcast/3` but uses `Task.async_stream/3` to send the commands in parallel.
+
+  The results are returned as a Stream. You can collect the results into a list.
+  Or you can take the first N items. Be aware ordering is not guaranteed.
+
+  Options:
+    * `:max_concurrency` - The maximum number of concurrent tasks to run (default `System.schedulers_online()`).
+    * `:timeout` - The max time in milliseconds to wait for each task to complete (default `5000`).
+    * `:role` - The role to use when querying the cluster. Possible values are:
+      - `:any` - Query any node (default).
+      - `:master` - Query the master nodes.
+      - `:replica` - Query the replica nodes.
+  """
+  @spec broadcast_async(Configuration.t(), pipeline(), Keyword.t()) ::
+          Enumerable.t()
+  def broadcast_async(config, commands, opts \\ []) do
+    role_selector = Keyword.get(opts, :role, :any)
+    max_concurrency = Keyword.get(opts, :max_concurrency) || System.schedulers_online()
+    timeout = Keyword.get(opts, :timeout, 5000)
+    redis = config.redis_module
+
+    task_opts = [
+      max_concurrency: max_concurrency,
+      ordered: false,
+      timeout: timeout,
+      on_timeout: :kill_task,
+      zip_input_on_exit: true
+    ]
+
+    command_info =
+      for {_mod, _lo, _hi, role, host, port} <- HashSlots.all_slots(config),
+          role_selector == :any or role == role_selector do
+        conn = RedisCluster.Pool.get_conn(config, host, port)
+        {host, port, role, conn, commands}
+      end
+
+    command_info
+    |> Task.async_stream(
+      fn {host, port, role, conn, cmds} ->
+        result = redis.pipeline(conn, cmds)
+        {host, port, role, result}
+      end,
+      task_opts
+    )
+    # Unwrap the nested {:ok, ...} tuples.
+    |> Stream.map(fn
+      {:ok, value} -> value
+      other -> other
+    end)
+  end
+
   ## Helpers
+
+  @spec run_async_commands_by_conn(
+          commands_by_conn :: %{required(pid()) => pipeline()},
+          Configuration.t(),
+          task_opts :: Keyword.t()
+        ) :: Enumerable.t()
+  defp run_async_commands_by_conn(commands_by_conn, config, opts) do
+    max_concurrency = Keyword.get(opts, :max_concurrency) || System.schedulers_online()
+    timeout = Keyword.get(opts, :timeout, 5000)
+    reply? = Keyword.get(opts, :reply, true)
+    redis = config.redis_module
+
+    task_opts = [
+      max_concurrency: max_concurrency,
+      ordered: false,
+      timeout: timeout,
+      on_timeout: :kill_task,
+      zip_input_on_exit: true
+    ]
+
+    stream =
+      if reply? do
+        Task.async_stream(
+          commands_by_conn,
+          fn {conn, cmds} ->
+            redis.pipeline(conn, cmds)
+          end,
+          task_opts
+        )
+      else
+        Task.async_stream(
+          commands_by_conn,
+          fn {conn, cmds} ->
+            redis.noreply_pipeline(conn, cmds)
+          end,
+          task_opts
+        )
+      end
+
+    # Unwrap the nested {:ok, ...} tuples.
+    Stream.map(stream, fn
+      {:ok, value} -> value
+      other -> other
+    end)
+  end
+
+  @spec create_set_cmds_by_conn(
+          pairs :: [{key(), value()}],
+          Configuration.t(),
+          opts :: Keyword.t()
+        ) :: %{required(pid()) => pipeline()}
+  defp create_set_cmds_by_conn(pairs, config, opts) do
+    # Create a map of conn => [~w[SET key value ...], ...]
+    pairs
+    |> Map.new(fn {k, v} -> {to_string(k), v} end)
+    |> Enum.group_by(
+      # Find the conn for the key.
+      fn {k, _v} ->
+        slot = Key.hash_slot(k, opts)
+        get_conn(config, slot, :master)
+      end,
+      # Create the SET command.
+      fn {k, v} ->
+        List.flatten([
+          ["SET", k, v],
+          expire_option(opts),
+          write_option(opts)
+        ])
+      end
+    )
+  end
+
+  @spec create_del_cmds_by_conn(
+          keys :: [key()],
+          Configuration.t(),
+          opts :: Keyword.t()
+        ) :: %{required(pid()) => pipeline()}
+  defp create_del_cmds_by_conn(keys, config, opts) do
+    # Create a map of conn => [~w[DEL key], ...]
+    keys
+    |> MapSet.new(&to_string/1)
+    |> Enum.group_by(
+      # Find the conn for the key.
+      fn key ->
+        slot = Key.hash_slot(key, opts)
+        get_conn(config, slot, :master)
+      end,
+      # Create the DEL command.
+      fn key -> ["DEL", key] end
+    )
+  end
+
+  @spec process_del_responses(
+          results :: Enumerable.t(),
+          Configuration.t(),
+          role(),
+          [key()],
+          reply? :: boolean()
+        ) :: integer() | :ok | {:error, any()}
+  defp process_del_responses(results, config, role, keys, _reply? = true) do
+    Enum.reduce_while(results, 0, fn
+      {:ok, results}, acc ->
+        {:cont, acc + Enum.sum(results)}
+
+      error = {:error, %Redix.Error{message: "MOVED" <> rest}}, _acc ->
+        # If we get a MOVED error, we need to rediscover the cluster.
+        {expected_slot, host, port} = parse_redirect(rest, config.host)
+
+        metadata = %{
+          role: role,
+          expected_slot: expected_slot,
+          expected_host: "#{host}:#{port}",
+          keys: List.wrap(keys),
+          slot: hash_slot(keys, []),
+          config_name: config.name
+        }
+
+        Logger.warning("Received MOVED redirect with delete_many, rediscovering cluster.",
+          metadata: metadata,
+          table: HashSlots.all_slots_as_table(config)
+        )
+
+        Telemetry.moved_redirect(metadata)
+
+        rediscover(config)
+        {:halt, error}
+
+      _error, acc ->
+        {:cont, acc}
+    end)
+  end
+
+  defp process_del_responses(list, _config, _role, _keys, _reply? = false) when is_list(list) do
+    :ok
+  end
+
+  defp process_del_responses(stream, _config, _role, _keys, _reply? = false) do
+    # Force the async stream to run.
+    Stream.run(stream)
+    :ok
+  end
 
   defp expire_option(opts) do
     expire_seconds = Keyword.get(opts, :expire_seconds, 0)
@@ -732,14 +1068,21 @@ defmodule RedisCluster.Cluster do
   defp maybe_rediscover(config, errors) do
     info =
       for %Redix.Error{message: "MOVED" <> rest} <- errors do
-        String.split(rest, " ", parts: 2, trim: true)
+        parse_redirect(rest, config.host)
       end
 
     if info != [] do
-      Logger.warning("Some commands failed, rediscovering cluster.",
+      metadata = %{
         info: info,
+        errors: errors,
         config_name: config.name,
         table: HashSlots.all_slots_as_table(config)
+      }
+
+      Telemetry.moved_redirect(metadata)
+
+      Logger.warning("Some commands failed with MOVED redirect, rediscovering cluster.",
+        metadata: metadata
       )
 
       rediscover(config)

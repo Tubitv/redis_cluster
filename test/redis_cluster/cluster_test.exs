@@ -238,7 +238,58 @@ defmodule RedisCluster.ClusterTest do
       assert nil == Cluster.get(config, key)
     end
 
-    test "should handle broadcast commands", context do
+    test "should handle generic command to any node", context do
+      config = context[:config]
+
+      assert "PONG" = Cluster.command(config, ["PING"], :any, [])
+    end
+
+    test "should handle generic command to master node", context do
+      config = context[:config]
+
+      result = Cluster.command(config, ["ROLE"], :any, role: :master)
+
+      assert match?(
+               ["master", _replication_offset, _replicas = [_, _, _]],
+               result
+             )
+    end
+
+    test "should handle generic command to replica node", context do
+      config = context[:config]
+
+      result = Cluster.command(config, ["ROLE"], :any, role: :replica)
+
+      assert match?(
+               ["slave", "127.0.0.1", _port, "connected", _replication_offset],
+               result
+             )
+    end
+
+    test "should handle generic pipeline to any node", context do
+      config = context[:config]
+
+      assert ["PONG", "PONG", "PONG"] =
+               Cluster.pipeline(config, [["PING"], ["PING"], ["PING"]], :any, [])
+    end
+
+    test "should handle generic pipeline to master node", context do
+      config = context[:config]
+
+      assert ["PONG", ["master", _replication_offset, _replicas = [_, _, _]]] =
+               Cluster.pipeline(config, [["PING"], ["ROLE"]], :any, role: :master)
+    end
+
+    test "should handle generic pipeline to replica node", context do
+      config = context[:config]
+
+      assert ["PONG", ["slave", "127.0.0.1", _port, "connected", _replication_offset]] =
+               Cluster.pipeline(config, [["PING"], ["ROLE"]], :any, role: :replica)
+    end
+  end
+
+  describe "broadcast operations" do
+    test "should handle broadcast commands to all nodes", context do
       config = context[:config]
 
       result =
@@ -247,18 +298,78 @@ defmodule RedisCluster.ClusterTest do
         |> Enum.sort()
 
       assert [
-               {"127.0.0.1", 6379, {:ok, [_, "" <> _]}},
-               {"127.0.0.1", 6380, {:ok, [_, "" <> _]}},
-               {"127.0.0.1", 6381, {:ok, [_, "" <> _]}},
-               {"127.0.0.1", 6382, {:ok, [_, "" <> _]}},
-               {"127.0.0.1", 6383, {:ok, [_, "" <> _]}},
-               {"127.0.0.1", 6384, {:ok, [_, "" <> _]}},
-               {"127.0.0.1", 6385, {:ok, [_, "" <> _]}},
-               {"127.0.0.1", 6386, {:ok, [_, "" <> _]}},
-               {"127.0.0.1", 6387, {:ok, [_, "" <> _]}},
-               {"127.0.0.1", 6388, {:ok, [_, "" <> _]}},
-               {"127.0.0.1", 6389, {:ok, [_, "" <> _]}},
-               {"127.0.0.1", 6390, {:ok, [_, "" <> _]}}
+               {"127.0.0.1", 6379, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6380, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6381, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6382, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6383, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6384, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6385, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6386, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6387, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6388, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6389, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6390, _, {:ok, [_, "" <> _]}}
+             ] = Enum.sort(result)
+    end
+
+    test "should handle broadcast commands to master nodes", context do
+      config = context[:config]
+
+      result =
+        config
+        |> Cluster.broadcast([~w[DBSIZE], ~w[INFO STATS]], role: :master)
+        |> Enum.sort()
+
+      assert [
+               {"127.0.0.1", _, :master, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", _, :master, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", _, :master, {:ok, [_, "" <> _]}}
+             ] = Enum.sort(result)
+    end
+
+    test "should handle broadcast commands to replica nodes", context do
+      config = context[:config]
+
+      result =
+        config
+        |> Cluster.broadcast([~w[DBSIZE], ~w[INFO STATS]], role: :replica)
+        |> Enum.sort()
+
+      assert [
+               {"127.0.0.1", _, :replica, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", _, :replica, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", _, :replica, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", _, :replica, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", _, :replica, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", _, :replica, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", _, :replica, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", _, :replica, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", _, :replica, {:ok, [_, "" <> _]}}
+             ] = Enum.sort(result)
+    end
+
+    test "should handle broadcast commands in parallel", context do
+      config = context[:config]
+
+      result =
+        config
+        |> Cluster.broadcast_async([~w[DBSIZE], ~w[INFO STATS]])
+        |> Enum.sort()
+
+      assert [
+               {"127.0.0.1", 6379, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6380, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6381, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6382, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6383, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6384, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6385, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6386, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6387, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6388, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6389, _, {:ok, [_, "" <> _]}},
+               {"127.0.0.1", 6390, _, {:ok, [_, "" <> _]}}
              ] = Enum.sort(result)
     end
   end
@@ -276,6 +387,21 @@ defmodule RedisCluster.ClusterTest do
       assert :ok = Cluster.set_many(config, pairs)
       assert ~w[value1 value2 value3] = Cluster.get_many(config, Map.keys(pairs))
       assert 3 = Cluster.delete_many(config, Map.keys(pairs))
+      assert [nil, nil, nil] = Cluster.get_many(config, Map.keys(pairs))
+    end
+
+    test "should handle the multi-key operations with noreply", context do
+      config = context[:config]
+
+      pairs = %{
+        "noreply-multi-key-test-1" => "value1",
+        "noreply-multi-key-test-2" => "value2",
+        "noreply-multi-key-test-3" => "value3"
+      }
+
+      assert :ok = Cluster.set_many(config, pairs, reply: false)
+      assert ~w[value1 value2 value3] = Cluster.get_many(config, Map.keys(pairs))
+      assert :ok = Cluster.delete_many(config, Map.keys(pairs), reply: false)
       assert [nil, nil, nil] = Cluster.get_many(config, Map.keys(pairs))
     end
 
@@ -422,6 +548,105 @@ defmodule RedisCluster.ClusterTest do
 
       # Clean up
       Cluster.delete_many(config, Map.keys(pairs))
+    end
+  end
+
+  describe "async multi-key operations" do
+    test "should handle multi-key operations in parallel", context do
+      config = context[:config]
+
+      pairs = %{
+        "parallel-multi-key-1" => "value1",
+        "parallel-multi-key-2" => "value2",
+        "parallel-multi-key-3" => "value3"
+      }
+
+      assert :ok = Cluster.set_many_async(config, pairs)
+      assert ~w[value1 value2 value3] = Cluster.get_many_async(config, Map.keys(pairs))
+      assert 3 = Cluster.delete_many_async(config, Map.keys(pairs))
+      assert [nil, nil, nil] = Cluster.get_many_async(config, Map.keys(pairs))
+    end
+
+    test "should handle multi-key operations in parallel with noreply", context do
+      config = context[:config]
+
+      pairs = %{
+        "parallel-multi-key-noreply-1" => "value1",
+        "parallel-multi-key-noreply-2" => "value2",
+        "parallel-multi-key-noreply-3" => "value3"
+      }
+
+      assert :ok = Cluster.set_many_async(config, pairs, reply: false)
+      assert ~w[value1 value2 value3] = Cluster.get_many_async(config, Map.keys(pairs))
+      assert :ok = Cluster.delete_many_async(config, Map.keys(pairs), reply: false)
+      assert [nil, nil, nil] = Cluster.get_many_async(config, Map.keys(pairs))
+    end
+
+    test "should handle multi-key operations in parallel with hash tags and noreply", context do
+      config = context[:config]
+
+      pairs = %{
+        "parallel-multi-key-noreply-1{hashtag}" => "value1",
+        "parallel-multi-key-noreply-2{hashtag}" => "value2",
+        "parallel-multi-key-noreply-3{hashtag}" => "value3"
+      }
+
+      assert :ok = Cluster.set_many_async(config, pairs, reply: false, compute_hash_tag: true)
+
+      assert ~w[value1 value2 value3] =
+               Cluster.get_many_async(config, Map.keys(pairs), compute_hash_tag: true)
+
+      assert :ok =
+               Cluster.delete_many_async(config, Map.keys(pairs),
+                 reply: false,
+                 compute_hash_tag: true
+               )
+
+      assert [nil, nil, nil] =
+               Cluster.get_many_async(config, Map.keys(pairs), compute_hash_tag: true)
+    end
+
+    test "should handle multi-key operations in parallel with hash tags", context do
+      config = context[:config]
+
+      pairs = %{
+        "parallel-multi-key-1{hashtag}" => "value1",
+        "parallel-multi-key-2{hashtag}" => "value2",
+        "parallel-multi-key-3{hashtag}" => "value3"
+      }
+
+      assert :ok = Cluster.set_many_async(config, pairs, compute_hash_tag: true)
+
+      assert ~w[value1 value2 value3] =
+               Cluster.get_many_async(config, Map.keys(pairs), compute_hash_tag: true)
+
+      assert 3 = Cluster.delete_many_async(config, Map.keys(pairs), compute_hash_tag: true)
+
+      assert [nil, nil, nil] =
+               Cluster.get_many_async(config, Map.keys(pairs), compute_hash_tag: true)
+    end
+
+    test "should handle multi-key operations in parallel with empty list", context do
+      config = context[:config]
+
+      assert :ok = Cluster.set_many_async(config, %{})
+      assert :ok = Cluster.set_many_async(config, [])
+      assert [] = Cluster.get_many_async(config, [])
+      assert 0 = Cluster.delete_many_async(config, [])
+    end
+
+    test "should handle multi-key operations in parallel with a single item", context do
+      config = context[:config]
+
+      pairs = %{
+        "parallel-multi-key-1" => "value1"
+      }
+
+      assert :ok = Cluster.set_many_async(config, pairs)
+      assert :ok = Cluster.set_many_async(config, Enum.to_list(pairs))
+      assert ~w[value1] = Cluster.get_many_async(config, Map.keys(pairs))
+      assert 1 = Cluster.delete_many_async(config, Map.keys(pairs))
+      assert [nil] = Cluster.get_many_async(config, Map.keys(pairs))
     end
   end
 

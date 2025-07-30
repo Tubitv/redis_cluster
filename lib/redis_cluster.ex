@@ -105,6 +105,10 @@ defmodule RedisCluster do
         RedisCluster.Cluster.get_many(config(), keys, opts)
       end
 
+      def get_many_async(keys, opts \\ []) do
+        RedisCluster.Cluster.get_many_async(config(), keys, opts)
+      end
+
       def set(key, value, opts \\ []) do
         RedisCluster.Cluster.set(config(), key, value, opts)
       end
@@ -113,12 +117,20 @@ defmodule RedisCluster do
         RedisCluster.Cluster.set_many(config(), entries, opts)
       end
 
+      def set_many_async(entries, opts \\ []) do
+        RedisCluster.Cluster.set_many_async(config(), entries, opts)
+      end
+
       def delete(key, opts \\ []) do
         RedisCluster.Cluster.delete(config(), key, opts)
       end
 
       def delete_many(keys, opts \\ []) do
         RedisCluster.Cluster.delete_many(config(), keys, opts)
+      end
+
+      def delete_many_async(keys, opts \\ []) do
+        RedisCluster.Cluster.delete_many_async(config(), keys, opts)
       end
 
       @deprecated "Use `command/3` instead."
