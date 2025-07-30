@@ -242,25 +242,28 @@ defmodule RedisCluster.Cluster do
     opts = Keyword.merge([compute_hash_tag: true], opts)
     reply? = Keyword.get(opts, :reply, true)
 
-    pairs
-    |> create_set_cmds(config, opts)
-    |> Enum.map(fn {conn, cmds} ->
-      if reply? do
+    if reply? do
+      pairs
+      |> create_set_cmds(config, opts)
+      |> Enum.map(fn {conn, cmds} ->
         config.redis_module.pipeline(conn, cmds)
-      else
+      end)
+      |> Enum.reject(&match?({:ok, _}, &1))
+      |> case do
+        [] -> :ok
+        errors -> maybe_rediscover(config, errors)
+      end
+    else
+      pairs
+      |> create_set_cmds(config, opts)
+      |> Enum.map(fn {conn, cmds} ->
         config.redis_module.noreply_pipeline(conn, cmds)
+      end)
+      |> Enum.reject(&(&1 == :ok))
+      |> case do
+        [] -> :ok
+        errors -> maybe_rediscover(config, errors)
       end
-    end)
-    |> Enum.reject(fn result ->
-      if reply? do
-        match?({:ok, _}, result)
-      else
-        result == :ok
-      end
-    end)
-    |> case do
-      [] -> :ok
-      errors -> maybe_rediscover(config, errors)
     end
   end
 
@@ -296,20 +299,24 @@ defmodule RedisCluster.Cluster do
   def set_many_async(config, pairs, opts) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
     reply? = Keyword.get(opts, :reply, true)
+    commands = create_set_cmds(pairs, config, opts)
 
-    pairs
-    |> create_set_cmds(config, opts)
-    |> run_async_commands_by_conn(config, opts)
-    |> Enum.reject(fn result ->
-      if reply? do
-        match?({:ok, _}, result)
-      else
-        result == :ok
+    if reply? do
+      commands
+      |> run_async_commands_by_conn(config, opts)
+      |> Enum.reject(&match?({:ok, _}, &1))
+      |> case do
+        [] -> :ok
+        errors -> maybe_rediscover(config, errors)
       end
-    end)
-    |> case do
-      [] -> :ok
-      errors -> maybe_rediscover(config, errors)
+    else
+      commands
+      |> run_async_commands_by_conn(config, opts)
+      |> Enum.reject(&(&1 == :ok))
+      |> case do
+        [] -> :ok
+        errors -> maybe_rediscover(config, errors)
+      end
     end
   end
 
@@ -471,16 +478,22 @@ defmodule RedisCluster.Cluster do
         get_conn(config, slot, role)
       end)
 
-    for {conn, keys} <- keys_by_conn do
-      cmds = Enum.map(keys, &["DEL", &1])
-
+    responses =
       if reply? do
-        config.redis_module.pipeline(conn, cmds)
+        for {conn, keys} <- keys_by_conn do
+          cmds = Enum.map(keys, &["DEL", &1])
+
+          config.redis_module.pipeline(conn, cmds)
+        end
       else
-        config.redis_module.noreply_pipeline(conn, cmds)
+        for {conn, keys} <- keys_by_conn do
+          cmds = Enum.map(keys, &["DEL", &1])
+
+          config.redis_module.noreply_pipeline(conn, cmds)
+        end
       end
-    end
-    |> process_del_responses(config, role, keys, reply?)
+
+    process_del_responses(responses, config, role, keys, reply?)
   end
 
   @doc """
@@ -717,19 +730,27 @@ defmodule RedisCluster.Cluster do
       zip_input_on_exit: true
     ]
 
-    commands_by_conn
-    |> Task.async_stream(
-      fn {conn, cmds} ->
-        if reply? do
-          config.redis_module.pipeline(conn, cmds)
-        else
-          config.redis_module.noreply_pipeline(conn, cmds)
-        end
-      end,
-      task_opts
-    )
+    stream =
+      if reply? do
+        Task.async_stream(
+          commands_by_conn,
+          fn {conn, cmds} ->
+            config.redis_module.pipeline(conn, cmds)
+          end,
+          task_opts
+        )
+      else
+        Task.async_stream(
+          commands_by_conn,
+          fn {conn, cmds} ->
+            config.redis_module.noreply_pipeline(conn, cmds)
+          end,
+          task_opts
+        )
+      end
+
     # Unwrap the nested {:ok, ...} tuples.
-    |> Stream.map(fn
+    Stream.map(stream, fn
       {:ok, value} -> value
       other -> other
     end)
