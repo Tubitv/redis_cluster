@@ -203,6 +203,10 @@ defmodule RedisCluster.Cluster do
 
   You may instruct the server to not return replies by setting `:reply` to `false`.
   This can save on bandwidth, reduce latency, and reduce processing on the server.
+  Be aware that you won't know if the commands were successful or not. If you are using
+  `:only_new` or `:only_overwrite`, you also won't know which keys were set.
+  Furthermore, if you follow up with `GET` commands for the same keys, the `SET` commands
+  may not have been processed yet.
 
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
@@ -436,6 +440,8 @@ defmodule RedisCluster.Cluster do
 
   You may instruct the server to not return replies by setting `:reply` to `false`.
   This can save on bandwidth, reduce latency, and reduce processing on the server.
+  If you follow up with `GET` commands for the same keys, the `DEL` commands may
+  not have been processed yet. This means you may still get a value for the keys.
 
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
