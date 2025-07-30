@@ -241,19 +241,19 @@ defmodule RedisCluster.Cluster do
   def set_many(config, pairs, opts) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
     reply? = Keyword.get(opts, :reply, true)
-    commands = create_set_cmds(pairs, config, opts)
+    commands_by_conn = create_set_cmds_by_conn(pairs, config, opts)
     redis = config.redis_module
 
-    # Run the commands and collect the errors.
+    # Run the commands and collect the errors in a single loop.
     errors =
       if reply? do
-        for {conn, cmds} <- commands,
+        for {conn, cmds} <- commands_by_conn,
             response = redis.pipeline(conn, cmds),
             not match?({:ok, _}, response) do
           response
         end
       else
-        for {conn, cmds} <- commands,
+        for {conn, cmds} <- commands_by_conn,
             response = redis.noreply_pipeline(conn, cmds),
             response != :ok do
           response
@@ -298,16 +298,16 @@ defmodule RedisCluster.Cluster do
   def set_many_async(config, pairs, opts) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
     reply? = Keyword.get(opts, :reply, true)
-    commands = create_set_cmds(pairs, config, opts)
+    commands_by_conn = create_set_cmds_by_conn(pairs, config, opts)
 
     # Run the commands and collect the errors.
     errors =
       if reply? do
-        commands
+        commands_by_conn
         |> run_async_commands_by_conn(config, opts)
         |> Enum.reject(&match?({:ok, _}, &1))
       else
-        commands
+        commands_by_conn
         |> run_async_commands_by_conn(config, opts)
         |> Enum.reject(&(&1 == :ok))
       end
@@ -466,32 +466,22 @@ defmodule RedisCluster.Cluster do
   def delete_many(config, keys, opts) when is_list(keys) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
     reply? = Keyword.get(opts, :reply, true)
-    role = :master
+    redis = config.redis_module
 
-    keys_by_conn =
-      keys
-      |> MapSet.new(&to_string/1)
-      |> Enum.group_by(fn key ->
-        slot = Key.hash_slot(key, opts)
-        get_conn(config, slot, role)
-      end)
+    commands_by_conn = create_del_cmds_by_conn(keys, config, opts)
 
     responses =
       if reply? do
-        for {conn, keys} <- keys_by_conn do
-          cmds = Enum.map(keys, &["DEL", &1])
-
-          config.redis_module.pipeline(conn, cmds)
+        for {conn, cmds} <- commands_by_conn do
+          redis.pipeline(conn, cmds)
         end
       else
-        for {conn, keys} <- keys_by_conn do
-          cmds = Enum.map(keys, &["DEL", &1])
-
-          config.redis_module.noreply_pipeline(conn, cmds)
+        for {conn, cmds} <- commands_by_conn do
+          redis.noreply_pipeline(conn, cmds)
         end
       end
 
-    process_del_responses(responses, config, role, keys, reply?)
+    process_del_responses(responses, config, :master, keys, reply?)
   end
 
   @doc """
@@ -517,24 +507,12 @@ defmodule RedisCluster.Cluster do
 
   def delete_many_async(config, keys, opts) when is_list(keys) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
-    role = :master
     reply? = Keyword.get(opts, :reply, true)
 
-    keys_by_conn =
-      keys
-      |> MapSet.new(&to_string/1)
-      |> Enum.group_by(fn key ->
-        slot = Key.hash_slot(key, opts)
-        get_conn(config, slot, role)
-      end)
-
-    for {conn, keys} <- keys_by_conn do
-      cmds = Enum.map(keys, &["DEL", &1])
-
-      {conn, cmds}
-    end
+    keys
+    |> create_del_cmds_by_conn(config, opts)
     |> run_async_commands_by_conn(config, opts)
-    |> process_del_responses(config, role, keys, reply?)
+    |> process_del_responses(config, :master, keys, reply?)
   end
 
   @deprecated "Use `command/4` instead."
@@ -647,11 +625,12 @@ defmodule RedisCluster.Cluster do
           ]
   def broadcast(config, commands, opts \\ []) do
     role_selector = Keyword.get(opts, :role, :any)
+    redis = config.redis_module
 
     for {_mod, _lo, _hi, role, host, port} <- HashSlots.all_slots(config),
         role_selector == :any or role == role_selector do
       conn = RedisCluster.Pool.get_conn(config, host, port)
-      result = config.redis_module.pipeline(conn, commands)
+      result = redis.pipeline(conn, commands)
 
       {host, port, role, result}
     end
@@ -677,6 +656,7 @@ defmodule RedisCluster.Cluster do
     role_selector = Keyword.get(opts, :role, :any)
     max_concurrency = Keyword.get(opts, :max_concurrency) || System.schedulers_online()
     timeout = Keyword.get(opts, :timeout, 5000)
+    redis = config.redis_module
 
     task_opts = [
       max_concurrency: max_concurrency,
@@ -696,7 +676,7 @@ defmodule RedisCluster.Cluster do
     command_info
     |> Task.async_stream(
       fn {host, port, role, conn, cmds} ->
-        result = config.redis_module.pipeline(conn, cmds)
+        result = redis.pipeline(conn, cmds)
         {host, port, role, result}
       end,
       task_opts
@@ -711,7 +691,7 @@ defmodule RedisCluster.Cluster do
   ## Helpers
 
   @spec run_async_commands_by_conn(
-          commands_by_conn :: [{pid(), pipeline()}],
+          commands_by_conn :: %{required(pid()) => pipeline()},
           Configuration.t(),
           task_opts :: Keyword.t()
         ) :: Enumerable.t()
@@ -719,6 +699,7 @@ defmodule RedisCluster.Cluster do
     max_concurrency = Keyword.get(opts, :max_concurrency) || System.schedulers_online()
     timeout = Keyword.get(opts, :timeout, 5000)
     reply? = Keyword.get(opts, :reply, true)
+    redis = config.redis_module
 
     task_opts = [
       max_concurrency: max_concurrency,
@@ -733,7 +714,7 @@ defmodule RedisCluster.Cluster do
         Task.async_stream(
           commands_by_conn,
           fn {conn, cmds} ->
-            config.redis_module.pipeline(conn, cmds)
+            redis.pipeline(conn, cmds)
           end,
           task_opts
         )
@@ -741,7 +722,7 @@ defmodule RedisCluster.Cluster do
         Task.async_stream(
           commands_by_conn,
           fn {conn, cmds} ->
-            config.redis_module.noreply_pipeline(conn, cmds)
+            redis.noreply_pipeline(conn, cmds)
           end,
           task_opts
         )
@@ -754,36 +735,50 @@ defmodule RedisCluster.Cluster do
     end)
   end
 
-  @spec create_set_cmds(
+  @spec create_set_cmds_by_conn(
           pairs :: [{key(), value()}],
           Configuration.t(),
           opts :: Keyword.t()
-        ) :: [{pid(), pipeline()}]
-  defp create_set_cmds(pairs, config, opts) do
-    role = :master
-
-    # Create a map of conn => [{key, value}, ...]
-    pairs_by_conn =
-      pairs
-      |> Map.new(fn {k, v} -> {to_string(k), v} end)
-      |> Enum.group_by(fn {k, _v} ->
+        ) :: %{required(pid()) => pipeline()}
+  defp create_set_cmds_by_conn(pairs, config, opts) do
+    # Create a map of conn => [~w[SET key value ...], ...]
+    pairs
+    |> Map.new(fn {k, v} -> {to_string(k), v} end)
+    |> Enum.group_by(
+      # Find the conn for the key.
+      fn {k, _v} ->
         slot = Key.hash_slot(k, opts)
-        get_conn(config, slot, role)
-      end)
+        get_conn(config, slot, :master)
+      end,
+      # Create the SET command.
+      fn {k, v} ->
+        List.flatten([
+          ["SET", k, v],
+          expire_option(opts),
+          write_option(opts)
+        ])
+      end
+    )
+  end
 
-    for {conn, pairs} <- pairs_by_conn do
-      # Create a list of SET commands with the requested options.
-      cmds =
-        Enum.map(pairs, fn {k, v} ->
-          List.flatten([
-            ["SET", k, v],
-            expire_option(opts),
-            write_option(opts)
-          ])
-        end)
-
-      {conn, cmds}
-    end
+  @spec create_del_cmds_by_conn(
+          keys :: [key()],
+          Configuration.t(),
+          opts :: Keyword.t()
+        ) :: %{required(pid()) => pipeline()}
+  defp create_del_cmds_by_conn(keys, config, opts) do
+    # Create a map of conn => [~w[DEL key], ...]
+    keys
+    |> MapSet.new(&to_string/1)
+    |> Enum.group_by(
+      # Find the conn for the key.
+      fn key ->
+        slot = Key.hash_slot(key, opts)
+        get_conn(config, slot, :master)
+      end,
+      # Create the DEL command.
+      fn key -> ["DEL", key] end
+    )
   end
 
   @spec process_del_responses(
