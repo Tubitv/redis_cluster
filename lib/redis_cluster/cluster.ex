@@ -132,7 +132,7 @@ defmodule RedisCluster.Cluster do
 
     Telemetry.execute_command(command, metadata, fn ->
       case command_with_retry(config, role, key, command, opts) do
-        {:error, _} = error -> error
+        error = {:error, _} -> error
         "OK" -> :ok
         other -> other
       end
@@ -241,29 +241,28 @@ defmodule RedisCluster.Cluster do
   def set_many(config, pairs, opts) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
     reply? = Keyword.get(opts, :reply, true)
+    commands = create_set_cmds(pairs, config, opts)
+    redis = config.redis_module
 
-    if reply? do
-      pairs
-      |> create_set_cmds(config, opts)
-      |> Enum.map(fn {conn, cmds} ->
-        config.redis_module.pipeline(conn, cmds)
-      end)
-      |> Enum.reject(&match?({:ok, _}, &1))
-      |> case do
-        [] -> :ok
-        errors -> maybe_rediscover(config, errors)
+    # Run the commands and collect the errors.
+    errors =
+      if reply? do
+        for {conn, cmds} <- commands,
+            response = redis.pipeline(conn, cmds),
+            not match?({:ok, _}, response) do
+          response
+        end
+      else
+        for {conn, cmds} <- commands,
+            response = redis.noreply_pipeline(conn, cmds),
+            response != :ok do
+          response
+        end
       end
-    else
-      pairs
-      |> create_set_cmds(config, opts)
-      |> Enum.map(fn {conn, cmds} ->
-        config.redis_module.noreply_pipeline(conn, cmds)
-      end)
-      |> Enum.reject(&(&1 == :ok))
-      |> case do
-        [] -> :ok
-        errors -> maybe_rediscover(config, errors)
-      end
+
+    case errors do
+      [] -> :ok
+      errors -> maybe_rediscover(config, errors)
     end
   end
 
@@ -301,22 +300,21 @@ defmodule RedisCluster.Cluster do
     reply? = Keyword.get(opts, :reply, true)
     commands = create_set_cmds(pairs, config, opts)
 
-    if reply? do
-      commands
-      |> run_async_commands_by_conn(config, opts)
-      |> Enum.reject(&match?({:ok, _}, &1))
-      |> case do
-        [] -> :ok
-        errors -> maybe_rediscover(config, errors)
+    # Run the commands and collect the errors.
+    errors =
+      if reply? do
+        commands
+        |> run_async_commands_by_conn(config, opts)
+        |> Enum.reject(&match?({:ok, _}, &1))
+      else
+        commands
+        |> run_async_commands_by_conn(config, opts)
+        |> Enum.reject(&(&1 == :ok))
       end
-    else
-      commands
-      |> run_async_commands_by_conn(config, opts)
-      |> Enum.reject(&(&1 == :ok))
-      |> case do
-        [] -> :ok
-        errors -> maybe_rediscover(config, errors)
-      end
+
+    case errors do
+      [] -> :ok
+      errors -> maybe_rediscover(config, errors)
     end
   end
 
@@ -833,6 +831,7 @@ defmodule RedisCluster.Cluster do
   end
 
   defp process_del_responses(stream, _config, _role, _keys, _reply? = false) do
+    # Force the async stream to run.
     Stream.run(stream)
     :ok
   end
