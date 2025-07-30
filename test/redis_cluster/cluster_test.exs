@@ -138,7 +138,7 @@ defmodule RedisCluster.ClusterTest do
       assert "value1" = Cluster.get(config, key)
 
       # Wait for expiration
-      Process.sleep(1500)
+      Process.sleep(1100)
       assert nil == Cluster.get(config, key)
     end
 
@@ -147,11 +147,11 @@ defmodule RedisCluster.ClusterTest do
 
       # Test setting with expiration in milliseconds
       key = "expiry_test_ms"
-      assert :ok = Cluster.set(config, key, "value2", expire_milliseconds: 500)
+      assert :ok = Cluster.set(config, key, "value2", expire_milliseconds: 100)
       assert "value2" = Cluster.get(config, key)
 
       # Wait for expiration
-      Process.sleep(1000)
+      Process.sleep(200)
       assert nil == Cluster.get(config, key)
     end
 
@@ -465,7 +465,7 @@ defmodule RedisCluster.ClusterTest do
       assert ["value1", "value2", "value3"] = Cluster.get_many(config, Map.keys(pairs))
 
       # Wait for expiration
-      Process.sleep(1500)
+      Process.sleep(1100)
       assert [nil, nil, nil] = Cluster.get_many(config, Map.keys(pairs))
     end
 
@@ -479,11 +479,11 @@ defmodule RedisCluster.ClusterTest do
       }
 
       # Test setting with expiration in milliseconds
-      assert :ok = Cluster.set_many(config, pairs, expire_milliseconds: 500)
+      assert :ok = Cluster.set_many(config, pairs, expire_milliseconds: 100)
       assert ["value1", "value2", "value3"] = Cluster.get_many(config, Map.keys(pairs))
 
       # Wait for expiration
-      Process.sleep(1000)
+      Process.sleep(200)
       assert [nil, nil, nil] = Cluster.get_many(config, Map.keys(pairs))
     end
 
@@ -563,6 +563,78 @@ defmodule RedisCluster.ClusterTest do
 
       assert :ok = Cluster.set_many_async(config, pairs)
       assert ~w[value1 value2 value3] = Cluster.get_many_async(config, Map.keys(pairs))
+      assert 3 = Cluster.delete_many_async(config, Map.keys(pairs))
+      assert [nil, nil, nil] = Cluster.get_many_async(config, Map.keys(pairs))
+    end
+
+    test "should handle overwrite only multi-key SET in parallel", context do
+      config = context[:config]
+
+      pairs = %{
+        "parallel-multi-key-overwrite-only-1" => "value1",
+        "parallel-multi-key-overwrite-only-2" => "value2",
+        "parallel-multi-key-overwrite-only-3" => "value3"
+      }
+
+      assert :ok = Cluster.set_many_async(config, pairs, set: :only_overwrite)
+      assert [nil, nil, nil] = Cluster.get_many_async(config, Map.keys(pairs))
+
+      assert :ok = Cluster.set_many_async(config, pairs)
+      assert ~w[value1 value2 value3] = Cluster.get_many_async(config, Map.keys(pairs))
+
+      assert 3 = Cluster.delete_many_async(config, Map.keys(pairs))
+      assert [nil, nil, nil] = Cluster.get_many_async(config, Map.keys(pairs))
+    end
+
+    test "should handle milliseconds expiration option with multi-key in parallel", context do
+      config = context[:config]
+
+      pairs = %{
+        "parallel-multi-key-millisecond-expiration-1" => "value1",
+        "parallel-multi-key-millisecond-expiration-2" => "value2",
+        "parallel-multi-key-millisecond-expiration-3" => "value3"
+      }
+
+      assert :ok = Cluster.set_many_async(config, pairs, expire_milliseconds: 100)
+      assert ~w[value1 value2 value3] = Cluster.get_many_async(config, Map.keys(pairs))
+
+      Process.sleep(200)
+      assert [nil, nil, nil] = Cluster.get_many_async(config, Map.keys(pairs))
+    end
+
+    test "should handle seconds expiration option with multi-key in parallel", context do
+      config = context[:config]
+
+      pairs = %{
+        "parallel-multi-key-second-expiration-1" => "value1",
+        "parallel-multi-key-second-expiration-2" => "value2",
+        "parallel-multi-key-second-expiration-3" => "value3"
+      }
+
+      assert :ok = Cluster.set_many_async(config, pairs, expire_seconds: 1)
+      assert ~w[value1 value2 value3] = Cluster.get_many_async(config, Map.keys(pairs))
+
+      Process.sleep(1100)
+      assert [nil, nil, nil] = Cluster.get_many_async(config, Map.keys(pairs))
+    end
+
+    test "should handle only new multi-key SET in parallel", context do
+      config = context[:config]
+
+      pairs = %{
+        "parallel-multi-key-only-new-1" => "value1",
+        "parallel-multi-key-only-new-2" => "value2",
+        "parallel-multi-key-only-new-3" => "value3"
+      }
+
+      assert :ok = Cluster.set_many_async(config, pairs, set: :only_new)
+      assert ~w[value1 value2 value3] = Cluster.get_many_async(config, Map.keys(pairs))
+
+      other_pairs = Map.new(pairs, fn {k, _v} -> {k, "FAIL"} end)
+
+      assert :ok = Cluster.set_many_async(config, other_pairs, set: :only_new)
+      assert ~w[value1 value2 value3] = Cluster.get_many_async(config, Map.keys(pairs))
+
       assert 3 = Cluster.delete_many_async(config, Map.keys(pairs))
       assert [nil, nil, nil] = Cluster.get_many_async(config, Map.keys(pairs))
     end

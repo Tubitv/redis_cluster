@@ -352,7 +352,7 @@ defmodule RedisCluster.Cluster do
 
     values_by_key =
       keys
-      |> Enum.uniq()
+      |> MapSet.new(&to_string/1)
       |> Enum.group_by(&Key.hash_slot(&1, opts))
       |> Enum.flat_map(fn {_slot, key_batch} ->
         case command_with_retry(config, role, key_batch, ["MGET" | key_batch], opts) do
@@ -403,7 +403,7 @@ defmodule RedisCluster.Cluster do
 
     values_by_key =
       keys
-      |> Enum.uniq()
+      |> MapSet.new(&to_string/1)
       |> Enum.group_by(&Key.hash_slot(&1, opts))
       |> Task.async_stream(
         fn {_slot, key_batch} ->
