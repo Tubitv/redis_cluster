@@ -41,7 +41,20 @@ defmodule RedisCluster.Monitor do
   alias RedisCluster.Configuration
   alias RedisCluster.Monitor.Message
 
-  defstruct [:host, :port, :conn, :count, :commands, :max_commands]
+  defstruct [:host, :port, :conn, :filter, :command_count, :total_count, :commands, :max_commands]
+
+  @typedoc """
+  A function that filters commands based on the message struct.
+  Also receives the current count of commands and the total count of commands.
+  This can be used for advanced filtering, such reservoir sampling.
+  If the function returns `:quit`, the monitor will stop.
+  If the function returns `:drop`, the message will be dropped.
+  If the function returns `:keep`, the message will be added to the queue, though an older message may be dropped.
+  """
+  @type filter_fun() :: (Message.t(),
+                         current_count :: non_neg_integer(),
+                         total_count :: non_neg_integer() ->
+                           :keep | :drop | :quit)
 
   @typedoc "A reference returned when starting monitoring"
   @type monitor_ref() :: reference()
@@ -54,6 +67,7 @@ defmodule RedisCluster.Monitor do
     * `:host` - Redis host (required)
     * `:port` - Redis port (required)
     * `:max_commands` - Maximum number of commands to keep in memory (optional, unlimited if nil, default 100)
+    * `:filter` - A function that filters commands based on the message struct (optional)
   """
   @spec start_link(Keyword.t()) :: GenServer.on_start()
   def start_link(opts) do
@@ -77,6 +91,7 @@ defmodule RedisCluster.Monitor do
 
   @doc """
   Clears all collected commands from the monitor.
+  Also resets the command count and total count.
   """
   @spec clear_commands(GenServer.server()) :: :ok
   def clear_commands(monitor) do
@@ -89,6 +104,34 @@ defmodule RedisCluster.Monitor do
   @spec stop(GenServer.server()) :: :ok
   def stop(monitor) do
     GenServer.stop(monitor)
+  end
+
+  @doc """
+  Returns a filter function that implements [reservoir sampling](https://samwho.dev/reservoir-sampling/).
+
+  The gist of reservoir sampling is that it has an equal probability of keeping each item.
+  This is useful for sampling a large stream of items without knowing the total number of items in advance.
+
+  ## Parameters
+
+  * `keep_count` - The number of items to keep.
+  * `total_limit` - The total number of items to check before quitting.
+  """
+  @spec reservoir_sample_fun(keep_count :: non_neg_integer(), total_limit :: non_neg_integer()) ::
+          filter_fun()
+  def reservoir_sample_fun(keep_count, total_limit) do
+    fn _message, _current_count, total_count ->
+      cond do
+        total_count >= total_limit ->
+          :quit
+
+        :rand.uniform() < keep_count / total_count ->
+          :keep
+
+        true ->
+          :drop
+      end
+    end
   end
 
   @doc """
@@ -108,11 +151,12 @@ defmodule RedisCluster.Monitor do
   def monitor_node(host, port, opts \\ []) do
     max_commands = Keyword.get(opts, :max_commands, 100)
 
-    monitor_opts = [
-      host: host,
-      port: port,
-      max_commands: max_commands
-    ]
+    monitor_opts =
+      Keyword.merge(opts,
+        host: host,
+        port: port,
+        max_commands: max_commands
+      )
 
     start_link(monitor_opts)
   end
@@ -165,12 +209,20 @@ defmodule RedisCluster.Monitor do
     host = Keyword.fetch!(opts, :host)
     port = Keyword.fetch!(opts, :port)
     max_commands = Keyword.get(opts, :max_commands)
+    filter = Keyword.get(opts, :filter)
+
+    if filter != nil and not is_function(filter, 3) do
+      raise ArgumentError,
+            "filter must be a function that takes 3 arguments: message, current_count, total_count"
+    end
 
     state = %__MODULE__{
       host: host,
       port: port,
       conn: nil,
-      count: 0,
+      filter: filter,
+      command_count: 0,
+      total_count: 0,
       commands: :queue.new(),
       max_commands: max_commands
     }
@@ -206,7 +258,7 @@ defmodule RedisCluster.Monitor do
   end
 
   def handle_call(:clear_commands, _from, state) do
-    {:reply, :ok, %{state | commands: :queue.new(), count: 0}}
+    {:reply, :ok, %{state | commands: :queue.new(), command_count: 0, total_count: 0}}
   end
 
   @impl GenServer
@@ -227,10 +279,36 @@ defmodule RedisCluster.Monitor do
         msg
       end
 
-    {new_queue, new_count} =
-      add_messages(state.commands, state.count, state.max_commands, new_messages)
+    case add_messages(
+           state.commands,
+           state.filter,
+           state.command_count,
+           state.total_count,
+           state.max_commands,
+           new_messages
+         ) do
+      {:ok, new_queue, new_command_count, new_total_count} ->
+        # Update the state, then continue.
+        {:noreply,
+         %{
+           state
+           | commands: new_queue,
+             command_count: new_command_count,
+             total_count: new_total_count
+         }}
 
-    {:noreply, %{state | commands: new_queue, count: new_count}}
+      {:quit, new_queue, new_command_count, new_total_count} ->
+        # Update the state, then quit the connection.
+        new_state =
+          %{
+            state
+            | commands: new_queue,
+              command_count: new_command_count,
+              total_count: new_total_count
+          }
+
+        {:noreply, quit(new_state)}
+    end
   end
 
   def handle_info({:tcp_closed, conn}, %{conn: conn} = state) do
@@ -282,11 +360,7 @@ defmodule RedisCluster.Monitor do
 
   @impl GenServer
   def terminate(_reason, state) do
-    if state.conn do
-      _ = :gen_tcp.send(state.conn, "*1\r\n$4\r\nQUIT\r\n")
-      :gen_tcp.close(state.conn)
-    end
-
+    quit(state)
     :ok
   end
 
@@ -309,20 +383,62 @@ defmodule RedisCluster.Monitor do
     end
   end
 
-  defp add_messages(queue, count, _limit, []) do
-    {queue, count}
+  @spec add_messages(
+          queue :: :queue.queue(),
+          filter :: filter_fun() | nil,
+          command_count :: non_neg_integer(),
+          total_count :: non_neg_integer(),
+          limit :: non_neg_integer(),
+          messages :: [Message.t()]
+        ) ::
+          {:ok, :queue.queue(), command_count :: non_neg_integer(),
+           total_count :: non_neg_integer()}
+          | {:quit, :queue.queue(), command_count :: non_neg_integer(),
+             total_count :: non_neg_integer()}
+  defp add_messages(queue, _filter, command_count, total_count, _limit, []) do
+    {:ok, queue, command_count, total_count}
   end
 
-  defp add_messages(queue, count, limit, [message | rest]) when count == limit do
-    # Add the message and drop the oldest one
-    new_queue = :queue.in(message, queue)
-    {_, new_queue} = :queue.out(new_queue)
-    add_messages(new_queue, count, limit, rest)
+  defp add_messages(queue, filter, command_count, total_count, limit, [message | rest]) do
+    action = message_action(message, filter, command_count, total_count)
+
+    cond do
+      action == :quit ->
+        {:quit, queue, command_count, total_count}
+
+      action == :keep and command_count == limit ->
+        # Add the message and drop the oldest one.
+        # Also, increment the total count.
+        new_queue = :queue.in(message, queue)
+        {_, new_queue} = :queue.out(new_queue)
+        add_messages(new_queue, filter, command_count, total_count + 1, limit, rest)
+
+      action == :keep ->
+        # Add the message and increment the counts
+        new_queue = :queue.in(message, queue)
+        add_messages(new_queue, filter, command_count + 1, total_count + 1, limit, rest)
+
+      action == :drop ->
+        add_messages(queue, filter, command_count, total_count + 1, limit, rest)
+    end
   end
 
-  defp add_messages(queue, count, limit, [message | rest]) do
-    # Add the message and increment the count
-    new_queue = :queue.in(message, queue)
-    add_messages(new_queue, count + 1, limit, rest)
+  defp message_action(_message, nil, _current_count, _total_count) do
+    :keep
+  end
+
+  defp message_action(message, filter, current_count, total_count) do
+    # Add 1 for the current message.
+    # This also avoids division by zero.
+    filter.(message, current_count, total_count + 1)
+  end
+
+  defp quit(state) do
+    if state.conn do
+      _ = :gen_tcp.send(state.conn, "*1\r\n$4\r\nQUIT\r\n")
+      :gen_tcp.close(state.conn)
+    end
+
+    %{state | conn: nil}
   end
 end

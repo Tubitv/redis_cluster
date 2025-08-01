@@ -136,8 +136,6 @@ defmodule MonitorTest do
       # Sends several commands to the same node.
       for n <- 1..10 do
         Cluster.set(config, "{#{hash_tag}}:limit_test#{n}", "value#{n}", compute_hash_tag: true)
-
-        Process.sleep(1000)
       end
 
       # Wait for monitor to process
@@ -154,6 +152,79 @@ defmodule MonitorTest do
 
       # Clean up
       Monitor.stop(monitor_pid)
+    end
+
+    test "should stop monitoring when filter returns :quit", %{
+      config: config,
+      port: port,
+      hash_tag: hash_tag
+    } do
+      max_commands = 10
+
+      filter = fn _message, current_count, _total_count ->
+        if current_count > 2 do
+          :quit
+        else
+          :keep
+        end
+      end
+
+      {:ok, monitor_pid} =
+        Monitor.monitor_node("127.0.0.1", port, max_commands: max_commands, filter: filter)
+
+      # Wait longer for monitor to be fully connected
+      Process.sleep(200)
+
+      for n <- 1..10 do
+        Cluster.set(config, "{#{hash_tag}}:quit_test#{n}", "value#{n}", compute_hash_tag: true)
+        Process.sleep(1000)
+      end
+
+      # Wait for activity and get commands
+      Process.sleep(1000)
+
+      commands = Monitor.get_commands(monitor_pid)
+      assert length(commands) == 3
+
+      # Should have the first 3 commands
+      assert Enum.at(commands, -1).command =~ ~r/SET.*quit_test3/i
+      assert Enum.at(commands, -2).command =~ ~r/SET.*quit_test2/i
+      assert Enum.at(commands, -3).command =~ ~r/SET.*quit_test1/i
+
+      # Clean up
+      Monitor.stop(monitor_pid)
+    end
+  end
+
+  describe "reservoir sampling" do
+    test "should randomly sample commands", %{config: config, port: port, hash_tag: hash_tag} do
+      filter = Monitor.reservoir_sample_fun(5, 100)
+      {:ok, monitor1} = Monitor.monitor_node("127.0.0.1", port, max_commands: 5, filter: filter)
+      {:ok, monitor2} = Monitor.monitor_node("127.0.0.1", port, max_commands: 5, filter: filter)
+
+      # Wait longer for monitor to be fully connected
+      Process.sleep(200)
+
+      for n <- 1..100 do
+        Cluster.set(config, "{#{hash_tag}}:reservoir_test#{n}", "value#{n}",
+          compute_hash_tag: true
+        )
+      end
+
+      # Wait for monitor to process
+      Process.sleep(100)
+
+      # Should have 5 commands
+      commands1 = Monitor.get_commands(monitor1) |> IO.inspect()
+      commands2 = Monitor.get_commands(monitor2) |> IO.inspect()
+
+      # It is very unlikely that two monitors will sample the same 5 of 100 commands.
+      # Probability is 1 in 75 million.
+      assert commands1 != commands2
+
+      # Clean up
+      Monitor.stop(monitor1)
+      Monitor.stop(monitor2)
     end
   end
 
