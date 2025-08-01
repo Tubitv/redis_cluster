@@ -22,21 +22,36 @@ defmodule MonitorTest do
 
     wait_for_cluster_to_be_ready(config)
 
-    {:ok, config: config}
+    # The port the tests will target.
+    port = 6379
+
+    # Find the slots the node handles.
+    [{start, stop}] =
+      for {_mod, start, stop, _role, _host, ^port} <- RedisCluster.HashSlots.all_slots(config) do
+        {start, stop}
+      end
+
+    # Find a key that hashes to the same slot as the node.
+    # This will be used as a hash tag.
+    hash_tag =
+      Enum.find(1..1000, fn n ->
+        RedisCluster.Key.hash_slot("#{n}") in start..stop
+      end)
+
+    {:ok, config: config, hash_tag: hash_tag, port: port}
   end
 
   describe "Monitor" do
-    test "can start and stop monitoring" do
+    test "can start and stop monitoring", %{config: config, port: port, hash_tag: hash_tag} do
       # Start a monitor process
-      {:ok, monitor_pid} =
-        Monitor.start_link(host: "127.0.0.1", port: 6379, max_commands: 10)
+      {:ok, monitor_pid} = Monitor.start_link(host: "127.0.0.1", port: port, max_commands: 10)
 
       Process.sleep(100)
 
-      # Generate some Redis activity with direct Redix connection
-      {:ok, conn} = Redix.start_link(host: "127.0.0.1", port: 6379)
-      Redix.command(conn, ["PING"])
-      Redix.command(conn, ["ECHO", "test"])
+      # Generate some Redis activity
+      Cluster.command(config, ["PING"], hash_tag, [])
+      Cluster.command(config, ["ECHO", "test"], hash_tag, [])
+      Cluster.set(config, "{#{hash_tag}}:monitor_test", "value", compute_hash_tag: true)
 
       # Wait for activity and then get commands
       Process.sleep(500)
@@ -53,17 +68,19 @@ defmodule MonitorTest do
 
       # Stop the monitor process
       :ok = Monitor.stop(monitor_pid)
-      GenServer.stop(conn)
     end
 
-    test "can monitor a single node via cluster helper" do
+    test "can monitor a single node via cluster helper", %{
+      config: config,
+      port: port,
+      hash_tag: hash_tag
+    } do
       # Start monitoring via cluster helper
-      {:ok, monitor_pid} = Monitor.monitor_node("127.0.0.1", 6379, max_commands: 10)
+      {:ok, monitor_pid} = Monitor.monitor_node("127.0.0.1", port, max_commands: 10)
 
       # Generate activity with direct connection to ensure it goes to the right node
-      {:ok, conn} = Redix.start_link(host: "127.0.0.1", port: 6379)
       Process.sleep(500)
-      Redix.command(conn, ["SET", "cluster_helper_test", "value"])
+      Cluster.set(config, "{#{hash_tag}}:cluster_helper_test", "value", compute_hash_tag: true)
 
       # Wait for activity and get commands
       Process.sleep(1000)
@@ -77,12 +94,9 @@ defmodule MonitorTest do
 
       # Clean up
       Monitor.stop(monitor_pid)
-      GenServer.stop(conn)
     end
 
-    test "can monitor multiple cluster nodes", context do
-      config = context[:config]
-
+    test "can monitor multiple cluster nodes", %{config: config, hash_tag: hash_tag} do
       # Start monitoring all master nodes
       {:ok, monitors} =
         Monitor.monitor_cluster_nodes(config, role: :master, max_commands: 10)
@@ -94,7 +108,7 @@ defmodule MonitorTest do
       Process.sleep(300)
 
       # Ping all the nodes
-      Cluster.broadcast(config, [~w[ECHO broadcast_test]])
+      Cluster.broadcast(config, [~w[ECHO {#{hash_tag}}:broadcast_test]])
 
       commands =
         monitors
@@ -112,29 +126,12 @@ defmodule MonitorTest do
       end
     end
 
-    @tag :current
-    test "should limit the number of commands", context do
-      config = context[:config]
-
-      port = 6380
+    test "should limit the number of commands", %{config: config, port: port, hash_tag: hash_tag} do
       max_commands = 3
       {:ok, monitor_pid} = Monitor.monitor_node("127.0.0.1", port, max_commands: max_commands)
 
       # Wait longer for monitor to be fully connected
       Process.sleep(200)
-
-      # Find the slots the node handles.
-      [{start, stop}] =
-        for {_mod, start, stop, _role, _host, ^port} <- RedisCluster.HashSlots.all_slots(config) do
-          {start, stop}
-        end
-
-      # Find a key that hashes to the same slot as the node.
-      # This will be used as a hash tag.
-      hash_tag =
-        Enum.find(1..1000, fn n ->
-          RedisCluster.Key.hash_slot("#{n}") in start..stop
-        end)
 
       # Sends several commands to the same node.
       for n <- 1..10 do
@@ -161,14 +158,17 @@ defmodule MonitorTest do
   end
 
   describe "message format" do
-    test "messages should contain expected fields" do
-      {:ok, monitor_pid} = Monitor.monitor_node("127.0.0.1", 6380, max_commands: 10)
-      {:ok, conn} = Redix.start_link(host: "127.0.0.1", port: 6380)
+    test "messages should contain expected fields", %{
+      config: config,
+      port: port,
+      hash_tag: hash_tag
+    } do
+      {:ok, monitor_pid} = Monitor.monitor_node("127.0.0.1", port, max_commands: 10)
 
       # Wait longer for monitor to be fully connected
       Process.sleep(200)
 
-      Redix.command(conn, ["SET", "format_test", "test_value"])
+      Cluster.set(config, "{#{hash_tag}}:format_test", "test_value", compute_hash_tag: true)
 
       # Extra wait for monitor to process
       Process.sleep(500)
@@ -180,9 +180,8 @@ defmodule MonitorTest do
 
       # Verify message format
       [message | _] = commands
-      assert %Message{host: host, port: port, command: msg, timestamp: ts} = message
+      assert %Message{host: host, port: ^port, command: msg, timestamp: ts} = message
       assert host == "127.0.0.1"
-      assert port == 6380
       assert is_binary(msg)
       assert is_float(ts)
       assert ts > 0
@@ -192,7 +191,6 @@ defmodule MonitorTest do
 
       # Clean up
       Monitor.stop(monitor_pid)
-      GenServer.stop(conn)
     end
   end
 
