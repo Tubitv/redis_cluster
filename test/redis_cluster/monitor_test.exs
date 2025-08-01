@@ -2,8 +2,28 @@ defmodule MonitorTest do
   # Async is false to avoid monitoring commands from other tests
   use ExUnit.Case, async: false
 
+  alias RedisCluster.Cluster
   alias RedisCluster.Monitor
   alias RedisCluster.Monitor.Message
+
+  setup_all do
+    config = %RedisCluster.Configuration{
+      host: "127.0.0.1",
+      port: 6379,
+      name: :test_monitor_cluster,
+      registry: :test_monitor_registry,
+      cluster: :test_monitor_cluster_sup,
+      pool: :test_monitor_pool,
+      shard_discovery: :test_monitor_shard_discovery,
+      pool_size: 1
+    }
+
+    Cluster.start_link(config)
+
+    wait_for_cluster_to_be_ready(config)
+
+    {:ok, config: config}
+  end
 
   describe "Monitor" do
     test "can start and stop monitoring" do
@@ -60,21 +80,8 @@ defmodule MonitorTest do
       GenServer.stop(conn)
     end
 
-    test "can monitor multiple cluster nodes" do
-      config = %RedisCluster.Configuration{
-        host: "127.0.0.1",
-        port: 6379,
-        name: :test_monitor_cluster,
-        registry: :test_monitor_registry,
-        cluster: :test_monitor_cluster_sup,
-        pool: :test_monitor_pool,
-        shard_discovery: :test_monitor_shard_discovery,
-        pool_size: 1
-      }
-
-      RedisCluster.Cluster.start_link(config)
-
-      wait_for_cluster_to_be_ready(config)
+    test "can monitor multiple cluster nodes", context do
+      config = context[:config]
 
       # Start monitoring all master nodes
       {:ok, monitors} =
@@ -87,7 +94,7 @@ defmodule MonitorTest do
       Process.sleep(300)
 
       # Ping all the nodes
-      RedisCluster.Cluster.broadcast(config, [~w[ECHO broadcast_test]])
+      Cluster.broadcast(config, [~w[ECHO broadcast_test]])
 
       commands =
         monitors
@@ -104,10 +111,57 @@ defmodule MonitorTest do
         Monitor.stop(monitor_pid)
       end
     end
+
+    @tag :current
+    test "should limit the number of commands", context do
+      config = context[:config]
+
+      port = 6380
+      max_commands = 3
+      {:ok, monitor_pid} = Monitor.monitor_node("127.0.0.1", port, max_commands: max_commands)
+
+      # Wait longer for monitor to be fully connected
+      Process.sleep(200)
+
+      # Find the slots the node handles.
+      [{start, stop}] =
+        for {_mod, start, stop, _role, _host, ^port} <- RedisCluster.HashSlots.all_slots(config) do
+          {start, stop}
+        end
+
+      # Find a key that hashes to the same slot as the node.
+      # This will be used as a hash tag.
+      hash_tag =
+        Enum.find(1..1000, fn n ->
+          RedisCluster.Key.hash_slot("#{n}") in start..stop
+        end)
+
+      # Sends several commands to the same node.
+      for n <- 1..10 do
+        Cluster.set(config, "{#{hash_tag}}:limit_test#{n}", "value#{n}", compute_hash_tag: true)
+
+        Process.sleep(1000)
+      end
+
+      # Wait for monitor to process
+      Process.sleep(1000)
+
+      # Should only have 3 commands due to max_commands limit
+      commands = Monitor.get_commands(monitor_pid)
+      assert length(commands) == max_commands
+
+      # Should have the latest commands
+      assert Enum.at(commands, -1).command =~ ~r/SET.*limit_test10/i
+      assert Enum.at(commands, -2).command =~ ~r/SET.*limit_test9/i
+      assert Enum.at(commands, -3).command =~ ~r/SET.*limit_test8/i
+
+      # Clean up
+      Monitor.stop(monitor_pid)
+    end
   end
 
   describe "message format" do
-    test "messages contain expected fields" do
+    test "messages should contain expected fields" do
       {:ok, monitor_pid} = Monitor.monitor_node("127.0.0.1", 6380, max_commands: 10)
       {:ok, conn} = Redix.start_link(host: "127.0.0.1", port: 6380)
 

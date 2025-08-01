@@ -41,7 +41,7 @@ defmodule RedisCluster.Monitor do
   alias RedisCluster.Configuration
   alias RedisCluster.Monitor.Message
 
-  defstruct [:host, :port, :conn, :commands, :max_commands]
+  defstruct [:host, :port, :conn, :count, :commands, :max_commands]
 
   @typedoc "A reference returned when starting monitoring"
   @type monitor_ref() :: reference()
@@ -170,7 +170,8 @@ defmodule RedisCluster.Monitor do
       host: host,
       port: port,
       conn: nil,
-      commands: [],
+      count: 0,
+      commands: :queue.new(),
       max_commands: max_commands
     }
 
@@ -199,39 +200,37 @@ defmodule RedisCluster.Monitor do
 
   @impl GenServer
   def handle_call(:get_commands, _from, state) do
-    {:reply, state.commands, state}
+    # Convert queue to list with most recent commands first
+    commands_list = :queue.to_list(state.commands)
+    {:reply, commands_list, state}
   end
 
   def handle_call(:clear_commands, _from, state) do
-    {:reply, :ok, %{state | commands: []}}
+    {:reply, :ok, %{state | commands: :queue.new(), count: 0}}
   end
 
   @impl GenServer
   def handle_info({:tcp, conn, data}, %{conn: conn} = state) do
-    clean_data = String.trim(data)
+    # Split data by newlines and process each line separately
+    # Multiple monitor messages can arrive in a single TCP packet
+    lines =
+      data
+      |> String.split("\n")
+      |> Enum.map(&String.trim/1)
 
-    case Message.parse(clean_data, state.host, state.port) do
-      message = %Message{} ->
-        new_commands = [message | state.commands]
+    # Parse each line and collect valid messages
+    new_messages =
+      for l <- lines,
+          l != "",
+          msg = Message.parse(l, state.host, state.port),
+          msg != nil do
+        msg
+      end
 
-        # Limit to max_commands if specified
-        limited_commands =
-          case state.max_commands do
-            nil ->
-              new_commands
+    {new_queue, new_count} =
+      add_messages(state.commands, state.count, state.max_commands, new_messages)
 
-            max when length(new_commands) > max ->
-              Enum.take(new_commands, max)
-
-            _max ->
-              new_commands
-          end
-
-        {:noreply, %{state | commands: limited_commands}}
-
-      _ ->
-        {:noreply, state}
-    end
+    {:noreply, %{state | commands: new_queue, count: new_count}}
   end
 
   def handle_info({:tcp_closed, conn}, %{conn: conn} = state) do
@@ -308,5 +307,22 @@ defmodule RedisCluster.Monitor do
           {:error, reason}
       end
     end
+  end
+
+  defp add_messages(queue, count, _limit, []) do
+    {queue, count}
+  end
+
+  defp add_messages(queue, count, limit, [message | rest]) when count == limit do
+    # Add the message and drop the oldest one
+    new_queue = :queue.in(message, queue)
+    {_, new_queue} = :queue.out(new_queue)
+    add_messages(new_queue, count, limit, rest)
+  end
+
+  defp add_messages(queue, count, limit, [message | rest]) do
+    # Add the message and increment the count
+    new_queue = :queue.in(message, queue)
+    add_messages(new_queue, count + 1, limit, rest)
   end
 end
