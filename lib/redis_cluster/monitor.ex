@@ -66,7 +66,7 @@ defmodule RedisCluster.Monitor do
 
     * `:host` - Redis host (required)
     * `:port` - Redis port (required)
-    * `:max_commands` - Maximum number of commands to keep in memory (optional, unlimited if nil, default 100)
+    * `:max_commands` - Maximum number of commands to keep in memory (d if nil, default 100)
     * `:filter` - A function that filters commands based on the message struct (optional)
   """
   @spec start_link(Keyword.t()) :: GenServer.on_start()
@@ -210,6 +210,10 @@ defmodule RedisCluster.Monitor do
     port = Keyword.fetch!(opts, :port)
     max_commands = Keyword.get(opts, :max_commands)
     filter = Keyword.get(opts, :filter)
+
+    if not is_integer(max_commands) or max_commands <= 0 do
+      raise ArgumentError, "max_commands must be a positive integer"
+    end
 
     if filter != nil and not is_function(filter, 3) do
       raise ArgumentError,
