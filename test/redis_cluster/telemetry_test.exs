@@ -1,5 +1,6 @@
 defmodule RedisCluster.TelemetryTest do
-  use ExUnit.Case, async: true
+  # Async is false to avoid picking up telemetry events from other tests
+  use ExUnit.Case, async: false
 
   alias RedisCluster.Telemetry
 

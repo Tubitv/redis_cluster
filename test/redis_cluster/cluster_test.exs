@@ -549,6 +549,49 @@ defmodule RedisCluster.ClusterTest do
       # Clean up
       Cluster.delete_many(config, Map.keys(pairs))
     end
+
+    test "should only send one command for duplicated keys", context do
+      config = context[:config]
+
+      {:ok, monitors} =
+        RedisCluster.Monitor.monitor_cluster_nodes(config, role: :master, max_commands: 50)
+
+      key = "duplicated-key"
+      value = "value1"
+
+      # Give monitors time to start up.
+      Process.sleep(100)
+
+      # Set the value and fetch it multiple times.
+      Cluster.set_many(config, [{key, value}, {key, value}, {key, value}])
+      assert [^value, ^value, ^value] = Cluster.get_many(config, [key, key, key])
+      Cluster.delete_many(config, [key, key, key])
+
+      # Get all commands from all monitors
+      all_commands =
+        for {_host, _port, _role, monitor_pid} <- monitors do
+          RedisCluster.Monitor.get_commands(monitor_pid)
+        end
+        |> List.flatten()
+
+      get_commands = Enum.filter(all_commands, &(&1.command =~ ~r/GET.*#{key}/))
+      set_commands = Enum.filter(all_commands, &(&1.command =~ ~r/SET.*#{key}/))
+      del_commands = Enum.filter(all_commands, &(&1.command =~ ~r/DEL.*#{key}/))
+
+      # Should only have 1 GET command for the duplicated key
+      assert 1 = length(get_commands)
+
+      # Should only have 1 SET command for the duplicated key
+      assert 1 = length(set_commands)
+
+      # Should only have 1 DEL command for the duplicated key
+      assert 1 = length(del_commands)
+
+      # Clean up monitors and delete the key.
+      for {_host, _port, _role, monitor_pid} <- monitors do
+        RedisCluster.Monitor.stop(monitor_pid)
+      end
+    end
   end
 
   describe "async multi-key operations" do
@@ -719,6 +762,51 @@ defmodule RedisCluster.ClusterTest do
       assert ~w[value1] = Cluster.get_many_async(config, Map.keys(pairs))
       assert 1 = Cluster.delete_many_async(config, Map.keys(pairs))
       assert [nil] = Cluster.get_many_async(config, Map.keys(pairs))
+    end
+
+    test "should only send one command for duplicated keys in parallel", context do
+      config = context[:config]
+
+      {:ok, monitors} =
+        RedisCluster.Monitor.monitor_cluster_nodes(config, role: :master, max_commands: 50)
+
+      key = "duplicated-key-parallel"
+      value = "value1"
+
+      # Give monitors time to start up.
+      Process.sleep(100)
+
+      # Set the value and fetch it multiple times.
+      Cluster.set_many_async(config, [{key, value}, {key, value}, {key, value}])
+
+      assert [^value, ^value, ^value] = Cluster.get_many_async(config, [key, key, key])
+
+      Cluster.delete_many_async(config, [key, key, key])
+
+      # Get all commands from all monitors
+      all_commands =
+        for {_host, _port, _role, monitor_pid} <- monitors do
+          RedisCluster.Monitor.get_commands(monitor_pid)
+        end
+        |> List.flatten()
+
+      get_commands = Enum.filter(all_commands, &(&1.command =~ ~r/GET.*#{key}/))
+      set_commands = Enum.filter(all_commands, &(&1.command =~ ~r/SET.*#{key}/))
+      del_commands = Enum.filter(all_commands, &(&1.command =~ ~r/DEL.*#{key}/))
+
+      # Should only have 1 GET/MGET command for the duplicated key
+      assert 1 = length(get_commands)
+
+      # Should only have 1 SET command for the duplicated key
+      assert 1 = length(set_commands)
+
+      # Should only have 1 DEL command for the duplicated key
+      assert 1 = length(del_commands)
+
+      # Clean up monitors and delete the key.
+      for {_host, _port, _role, monitor_pid} <- monitors do
+        RedisCluster.Monitor.stop(monitor_pid)
+      end
     end
   end
 
