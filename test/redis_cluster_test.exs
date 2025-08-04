@@ -12,6 +12,7 @@ defmodule RedisClusterTest do
   doctest RedisCluster.Lock
   doctest RedisCluster.Key
   doctest RedisCluster.Table
+  doctest RedisCluster.Monitor.Message
 
   setup_all do
     case TestRedis.start_link([]) do
