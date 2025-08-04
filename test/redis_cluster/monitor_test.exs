@@ -112,7 +112,7 @@ defmodule MonitorTest do
 
       commands =
         monitors
-        |> Enum.flat_map(fn {_host, _port, _role, monitor_pid} ->
+        |> Enum.flat_map(fn %{monitor_pid: monitor_pid} ->
           Monitor.get_commands(monitor_pid)
         end)
         |> Enum.filter(&(&1.command =~ "broadcast_test"))
@@ -121,7 +121,7 @@ defmodule MonitorTest do
       assert length(commands) == length(monitors)
 
       # Clean up all monitors
-      for {_host, _port, _role, monitor_pid} <- monitors do
+      for %{monitor_pid: monitor_pid} <- monitors do
         Monitor.stop(monitor_pid)
       end
     end

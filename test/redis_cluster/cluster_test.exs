@@ -569,7 +569,7 @@ defmodule RedisCluster.ClusterTest do
 
       # Get all commands from all monitors
       all_commands =
-        for {_host, _port, _role, monitor_pid} <- monitors do
+        for %{monitor_pid: monitor_pid} <- monitors do
           RedisCluster.Monitor.get_commands(monitor_pid)
         end
         |> List.flatten()
@@ -588,7 +588,7 @@ defmodule RedisCluster.ClusterTest do
       assert 1 = length(del_commands)
 
       # Clean up monitors and delete the key.
-      for {_host, _port, _role, monitor_pid} <- monitors do
+      for %{monitor_pid: monitor_pid} <- monitors do
         RedisCluster.Monitor.stop(monitor_pid)
       end
     end
@@ -785,7 +785,7 @@ defmodule RedisCluster.ClusterTest do
 
       # Get all commands from all monitors
       all_commands =
-        for {_host, _port, _role, monitor_pid} <- monitors do
+        for %{monitor_pid: monitor_pid} <- monitors do
           RedisCluster.Monitor.get_commands(monitor_pid)
         end
         |> List.flatten()
@@ -804,7 +804,7 @@ defmodule RedisCluster.ClusterTest do
       assert 1 = length(del_commands)
 
       # Clean up monitors and delete the key.
-      for {_host, _port, _role, monitor_pid} <- monitors do
+      for %{monitor_pid: monitor_pid} <- monitors do
         RedisCluster.Monitor.stop(monitor_pid)
       end
     end

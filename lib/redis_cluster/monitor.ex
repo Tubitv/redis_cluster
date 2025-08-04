@@ -164,11 +164,12 @@ defmodule RedisCluster.Monitor do
   @doc """
   Starts monitoring on multiple cluster nodes based on role.
 
-  Returns `{:ok, monitors}` where monitors is a list of tuples:
-  `{host, port, role, monitor_pid}`.
+  Returns `{:ok, monitors}` where monitors is a list of maps:
+  `%{host: String.t(), port: non_neg_integer(), role: atom(), monitor_pid: pid()}`.
   """
   @spec monitor_cluster_nodes(Configuration.t(), Keyword.t()) ::
-          {:ok, [{String.t(), non_neg_integer(), atom(), pid()}]} | {:error, term()}
+          {:ok, [%{host: String.t(), port: non_neg_integer(), role: atom(), monitor_pid: pid()}]}
+          | {:error, term()}
   def monitor_cluster_nodes(config, opts \\ []) do
     role_selector = Keyword.get(opts, :role, :any)
 
@@ -183,7 +184,7 @@ defmodule RedisCluster.Monitor do
       Enum.map(nodes, fn {host, port, role} ->
         case monitor_node(host, port, opts) do
           {:ok, monitor_pid} ->
-            {:ok, {host, port, role, monitor_pid}}
+            {:ok, %{host: host, port: port, role: role, monitor_pid: monitor_pid}}
 
           error ->
             Logger.warning("Failed to start monitoring for #{host}:#{port}", error: error)
@@ -364,7 +365,7 @@ defmodule RedisCluster.Monitor do
 
   @impl GenServer
   def terminate(_reason, state) do
-    quit(state)
+    _ = quit(state)
     :ok
   end
 
