@@ -3,6 +3,19 @@ defmodule RedisCluster.Cluster do
   The main module for interacting with a Redis cluster. Typically you will use the
   `RedisCluster` module. Though this module can be used directly for more dynamic use
   cases, such as connecting to a Redis cluster at runtime or in Livebook demos.
+
+  ## Default Role
+
+  Write operations must always be sent to master nodes.
+  By default, read operations are sent to master nodes.
+  This can be changed by setting the `:role` option in the called functions.
+  If you want to change the behavior for all read operations, you can set the `:default_role`
+  in your application config.  This avoids setting the `:role` option in every function call.
+
+  ```elixir
+  config :redis_cluster,
+    default_role: :any
+  ```
   """
 
   alias RedisCluster.Key
@@ -31,6 +44,8 @@ defmodule RedisCluster.Cluster do
 
   @typedoc "The role of a Redis node. Either a master or a replica."
   @type role() :: :master | :replica
+
+  @default_role Application.compile_env(:redis_cluster, :default_role, :master)
 
   @doc false
   def start_link(config = %Configuration{}) do
@@ -69,14 +84,14 @@ defmodule RedisCluster.Cluster do
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `false`).
     * `:role` - The role to use when querying the cluster. Possible values are:
-      - `:master` - Query the master node (default).
+      - `:master` - Query the master node (default, unless `:default_role` is set).
       - `:replica` - Query a replica node.
       - `:any` - Query any node.
   """
   @spec get(Configuration.t(), key(), Keyword.t()) :: binary() | nil | {:error, any()}
   def get(config, key, opts \\ []) do
     key = to_string(key)
-    role = Keyword.get(opts, :role, :master)
+    role = Keyword.get(opts, :role, @default_role)
     slot = Key.hash_slot(key, opts)
 
     metadata = %{
@@ -329,7 +344,7 @@ defmodule RedisCluster.Cluster do
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
     * `:role` - The role to use when querying the cluster. Possible values are:
-      - `:master` - Query the master node (default).
+      - `:master` - Query the master node (default, unless `:default_role` is set).
       - `:replica` - Query a replica node.
       - `:any` - Query any node.
   """
@@ -347,7 +362,7 @@ defmodule RedisCluster.Cluster do
 
   def get_many(config, keys, opts) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
-    role = Keyword.get(opts, :role, :master)
+    role = Keyword.get(opts, :role, @default_role)
     keys = Enum.map(keys, &to_string/1)
 
     values_by_key =
@@ -375,7 +390,7 @@ defmodule RedisCluster.Cluster do
     * `:timeout` - The max time in milliseconds to wait for each task to complete (default `5000`).
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `true`).
     * `:role` - The role to use when querying the cluster. Possible values are:
-      - `:master` - Query the master node (default).
+      - `:master` - Query the master node (default, unless `:default_role` is set).
       - `:replica` - Query a replica node.
       - `:any` - Query any node.
   """
@@ -388,7 +403,7 @@ defmodule RedisCluster.Cluster do
 
   def get_many_async(config, keys, opts) do
     opts = Keyword.merge([compute_hash_tag: true], opts)
-    role = Keyword.get(opts, :role, :master)
+    role = Keyword.get(opts, :role, @default_role)
     keys = Enum.map(keys, &to_string/1)
     max_concurrency = Keyword.get(opts, :max_concurrency) || System.schedulers_online()
     timeout = Keyword.get(opts, :timeout, 5000)
@@ -533,14 +548,14 @@ defmodule RedisCluster.Cluster do
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `false`). See `RedisCluster.Key.hash_slot/2`.
     * `:role` - The role to use when querying the cluster. Possible values are:
-      - `:master` - Query the master node (default).
+      - `:master` - Query the master node (default, unless `:default_role` is set).
       - `:replica` - Query a replica node.
       - `:any` - Query any node.
   """
   @spec command(Configuration.t(), command(), key() | :any, Keyword.t()) ::
           term() | {:error, any()}
   def command(config, command, key, opts) do
-    role = Keyword.get(opts, :role, :master)
+    role = Keyword.get(opts, :role, @default_role)
 
     metadata = %{
       config_name: config.name,
@@ -577,14 +592,14 @@ defmodule RedisCluster.Cluster do
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `false`). See `RedisCluster.Key.hash_slot/2`.
     * `:role` - The role to use when querying the cluster. Possible values are:
-      - `:master` - Query the master node (default).
+      - `:master` - Query the master node (default, unless `:default_role` is set).
       - `:replica` - Query a replica node.
       - `:any` - Query any node.
   """
   @spec pipeline(Configuration.t(), pipeline(), key() | :any, Keyword.t()) ::
           [term()] | {:error, any()}
   def pipeline(config, commands, key, opts) do
-    role = Keyword.get(opts, :role, :master)
+    role = Keyword.get(opts, :role, @default_role)
 
     metadata = %{
       config_name: config.name,
