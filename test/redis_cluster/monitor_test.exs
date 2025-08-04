@@ -215,8 +215,8 @@ defmodule MonitorTest do
       Process.sleep(100)
 
       # Should have 5 commands
-      commands1 = Monitor.get_commands(monitor1) |> IO.inspect()
-      commands2 = Monitor.get_commands(monitor2) |> IO.inspect()
+      commands1 = Monitor.get_commands(monitor1)
+      commands2 = Monitor.get_commands(monitor2)
 
       # It is very unlikely that two monitors will sample the same 5 of 100 commands.
       # Probability is 1 in 75 million.
