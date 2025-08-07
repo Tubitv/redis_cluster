@@ -6,8 +6,9 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
   @impl true
   def init(attrs, ctx) do
     config_variable = attrs["config_variable"] || "config"
-    key = attrs["key"] || "foo"
-    commands = attrs["commands"] || ~s{[["SET", "key", "value"], ["GET", "key"]]}
+    key = attrs["key"] || "\#{key}"
+    # Parse commands from JSON or create default
+    commands = parse_commands_from_attrs(attrs["commands"]) || ["GET key"]
 
     ctx = assign(ctx, config_variable: config_variable, key: key, commands: commands)
     {:ok, ctx}
@@ -26,79 +27,126 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
   @impl true
   def handle_event("update", params, ctx) do
     ctx = assign(ctx, params)
-    broadcast_event(ctx, "update", %{
-      config_variable: ctx.assigns.config_variable,
-      key: ctx.assigns.key,
-      commands: ctx.assigns.commands
-    })
     {:noreply, ctx}
   end
 
   @impl true
   def to_attrs(ctx) do
+    # Use string keys (from events) with atom key fallbacks (from init)
     %{
-      "config_variable" => ctx.assigns.config_variable,
-      "key" => ctx.assigns.key,
-      "commands" => ctx.assigns.commands
+      "config_variable" => ctx.assigns["config_variable"] || ctx.assigns.config_variable,
+      "key" => ctx.assigns["key"] || ctx.assigns.key,
+      "commands" => ctx.assigns["commands"] || ctx.assigns.commands
     }
   end
 
   @impl true
   def to_source(attrs) do
-    config_var = attrs["config_variable"]
-    key = attrs["key"]
-    commands = attrs["commands"]
+    config_var = attrs["config_variable"] || "config"
+    key = attrs["key"] || "\#{key}"
+    commands = attrs["commands"] || ["GET key"]
 
-    # Validate and parse commands
-    case parse_and_validate_commands(commands) do
-      {:ok, parsed_commands} ->
-        # Determine key parameter based on input
-        key_param = case String.trim(key) do
-          "any" -> ":any"
-          ":any" -> ":any"
-          other_key -> inspect(other_key)
+    # Parse commands from list of strings
+    parsed_commands = parse_command_strings(commands)
+
+    # Determine key parameter based on input
+    key_param = case String.trim(key) do
+      "any" -> ":any"
+      ":any" -> ":any"
+      other_key ->
+        # Check if key contains interpolation (#{...})
+        if String.contains?(other_key, "\#{") do
+          # Return as string with interpolation - don't quote it so it evaluates
+          "\"#{other_key}\""
+        else
+          # Return as regular quoted string
+          inspect(other_key)
         end
-
-        code = """
-        # Redis Cluster Pipeline Commands
-        commands = #{format_commands_for_output(parsed_commands)}
-
-        #{config_var} |> RedisCluster.Cluster.pipeline(commands, #{key_param})
-        """
-
-        {:ok, code}
-
-      {:error, reason} ->
-        {:error, reason}
     end
+
+    code = """
+    # Redis Cluster Pipeline Commands
+    commands = #{format_commands_for_output(parsed_commands)}
+
+    RedisCluster.Cluster.pipeline(#{config_var}, commands, #{key_param}, [])
+    """
+
+    code
   end
 
   # Private helper functions
 
-  defp parse_and_validate_commands(commands_json) do
+  defp parse_commands_from_attrs(commands_json) when is_binary(commands_json) do
     case Jason.decode(commands_json) do
       {:ok, commands} when is_list(commands) ->
-        validated_commands =
-          Enum.map(commands, fn
-            cmd when is_list(cmd) -> cmd
-            cmd when is_binary(cmd) -> String.split(cmd, ~r/\s+/)
-            _ -> ["INVALID"]
-          end)
+        Enum.map(commands, fn
+          cmd when is_list(cmd) -> Enum.join(cmd, " ")
+          cmd when is_binary(cmd) -> cmd
+          _ -> "GET key"
+        end)
+      _ -> nil
+    end
+  end
+  defp parse_commands_from_attrs(_), do: nil
 
-        if Enum.any?(validated_commands, &(&1 == ["INVALID"])) do
-          {:error, "Invalid command format"}
-        else
-          {:ok, validated_commands}
+  defp parse_command_strings(command_strings) do
+    command_strings
+    |> Enum.map(&String.trim/1)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.map(&parse_command_with_quotes/1)
+  end
+
+  defp parse_command_with_quotes(command_string) do
+    # Parse command string respecting quoted values
+    # Handles both single and double quotes
+    command_string
+    |> String.trim()
+    |> parse_quoted_string([])
+  end
+
+  defp parse_quoted_string("", acc), do: Enum.reverse(acc)
+
+  defp parse_quoted_string(str, acc) do
+    str = String.trim_leading(str)
+
+    cond do
+      str == "" ->
+        Enum.reverse(acc)
+
+      String.starts_with?(str, "\"") ->
+        # Handle double quotes
+        case extract_quoted_value(str, "\"") do
+          {value, rest} -> parse_quoted_string(rest, [value | acc])
+          :error -> parse_unquoted_word(str, acc)
         end
 
-      {:error, _} ->
-        # Try to parse as a simple string and convert to command list
-        try do
-          commands_list = [String.split(String.trim(commands_json), ~r/\s+/)]
-          {:ok, commands_list}
-        rescue
-          _ -> {:error, "Invalid commands format. Expected JSON array of commands."}
+      String.starts_with?(str, "'") ->
+        # Handle single quotes
+        case extract_quoted_value(str, "'") do
+          {value, rest} -> parse_quoted_string(rest, [value | acc])
+          :error -> parse_unquoted_word(str, acc)
         end
+
+      true ->
+        # Handle unquoted word
+        parse_unquoted_word(str, acc)
+    end
+  end
+
+  defp extract_quoted_value(str, quote_char) do
+    # Remove opening quote
+    str = String.slice(str, 1..-1//-1)
+
+    case String.split(str, quote_char, parts: 2) do
+      [value, rest] -> {value, rest}
+      [_] -> :error  # No closing quote found
+    end
+  end
+
+  defp parse_unquoted_word(str, acc) do
+    case String.split(str, ~r/\s+/, parts: 2) do
+      [word, rest] -> parse_quoted_string(rest, [word | acc])
+      [word] -> parse_quoted_string("", [word | acc])
     end
   end
 
@@ -106,12 +154,23 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
     commands
     |> Enum.map(fn cmd ->
       cmd
-      |> Enum.map(&inspect/1)
+      |> Enum.map(&format_command_argument/1)
       |> Enum.join(", ")
       |> then(&"[#{&1}]")
     end)
     |> Enum.join(",\n  ")
     |> then(&"[\n  #{&1}\n]")
+  end
+
+  defp format_command_argument(arg) do
+    # Check if argument contains interpolation
+    if String.contains?(arg, "\#{") do
+      # Return as string with interpolation - don't escape it
+      "\"#{arg}\""
+    else
+      # Return as regular quoted string
+      inspect(arg)
+    end
   end
 
   asset "main.js" do
@@ -121,38 +180,9 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
 
       let state = {
         config_variable: payload.config_variable || 'config',
-        key: payload.key || 'foo',
-        commands: payload.commands || '[["SET", "key", "value"], ["GET", "key"]]'
+        key: payload.key || '\#{key}',
+        commands: payload.commands || ['GET key']
       };
-
-      function renderCommands() {
-        let commands = [];
-        try {
-          commands = JSON.parse(state.commands);
-        } catch (e) {
-          commands = [["GET", "key"]];
-        }
-
-        return commands.map((cmd, index) => {
-          const cmdStr = Array.isArray(cmd) ? cmd.join(' ') : cmd;
-          return `
-            <div class="command-row" data-index="${index}">
-              <div class="command-input-group">
-                <input
-                  class="input command-input"
-                  type="text"
-                  value="${cmdStr}"
-                  placeholder="SET key value"
-                  data-index="${index}"
-                >
-                <button type="button" class="button is-danger is-small remove-command" data-index="${index}">
-                  <span class="icon">×</span>
-                </button>
-              </div>
-            </div>
-          `;
-        }).join('');
-      }
 
       function render() {
         const formHtml = `
@@ -165,8 +195,8 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
 
             <div class="field">
               <label class="label">Key</label>
-              <input class="input" type="text" name="key" value="${state.key}" placeholder="foo">
-              <p class="help">Redis key for hash slot routing (use :any for commands that work on any node)</p>
+              <input class="input" type="text" name="key" value="${state.key}" placeholder="\#{key}">
+              <p class="help">Redis key for hash slot routing (use :any for any node, supports interpolation like \#{key})</p>
             </div>
 
             <div class="field">
@@ -174,11 +204,11 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
               <div class="commands-container">
                 ${renderCommands()}
               </div>
-              <button type="button" class="button is-primary is-small add-command">
+              <button type="button" class="button add-command">
                 <span class="icon">+</span>
                 <span>Add Command</span>
               </button>
-              <p class="help">Redis commands to execute in pipeline. Each command should be space-separated (e.g., "SET key value")</p>
+              <p class="help">Redis commands to execute in pipeline. Space-separated with quoted values (e.g., SET key "some value")</p>
             </div>
           </form>
         `;
@@ -187,103 +217,167 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
         attachEventListeners();
       }
 
+      function renderCommands() {
+        return state.commands.map((cmd, index) => {
+          const isFirst = index === 0;
+          return `
+            <div class="command-row" data-index="${index}">
+              <div class="command-input-group">
+                <input
+                  class="input command-input"
+                  type="text"
+                  value="${cmd}"
+                  placeholder="GET key"
+                  data-index="${index}"
+                >
+                ${!isFirst ? `
+                  <button type="button" class="button is-danger is-small remove-command" data-index="${index}">
+                    <span class="icon">×</span>
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      function getCurrentInputValues() {
+        const form = ctx.root.querySelector("form");
+        if (!form) return {};
+
+        const configVar = form.querySelector('input[name="config_variable"]');
+        const keyInput = form.querySelector('input[name="key"]');
+        const commandInputs = form.querySelectorAll('.command-input');
+
+        return {
+          config_variable: configVar ? configVar.value : null,
+          key: keyInput ? keyInput.value : null,
+          commands: Array.from(commandInputs).map(input => input.value)
+        };
+      }
+
       function attachEventListeners() {
         const form = ctx.root.querySelector("form");
 
         // Handle basic field updates
         form.querySelectorAll('input[name="config_variable"], input[name="key"]').forEach(input => {
-          input.addEventListener("input", (event) => {
-            const field = event.target.name;
-            const value = event.target.value;
-            const updates = {};
-            updates[field] = value;
-            ctx.pushEvent("update", updates);
+          input.addEventListener("change", (event) => {
+            state[event.target.name] = event.target.value;
+            updateServer();
           });
         });
 
         // Handle command input changes
         form.querySelectorAll('.command-input').forEach(input => {
-          input.addEventListener("input", (event) => {
-            updateCommands();
+          input.addEventListener("change", (event) => {
+            const index = parseInt(event.target.dataset.index);
+            state.commands[index] = event.target.value;
+            updateServer();
           });
         });
 
         // Handle add command button
         const addButton = form.querySelector('.add-command');
         if (addButton) {
-          addButton.addEventListener('click', () => {
-            let commands = [];
-            try {
-              commands = JSON.parse(state.commands);
-            } catch (e) {
-              commands = [];
-            }
-
-            commands.push(["GET", "key"]);
-            state.commands = JSON.stringify(commands);
-            ctx.pushEvent("update", { commands: state.commands });
-            render();
+          addButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            addCommandRow();
           });
         }
 
-        // Handle remove command buttons
-        form.querySelectorAll('.remove-command').forEach(button => {
-          button.addEventListener('click', (event) => {
-            const index = parseInt(event.target.closest('.remove-command').dataset.index);
-            let commands = [];
-            try {
-              commands = JSON.parse(state.commands);
-            } catch (e) {
-              commands = [];
-            }
-
-            commands.splice(index, 1);
-            if (commands.length === 0) {
-              commands.push(["GET", "key"]);
-            }
-
-            state.commands = JSON.stringify(commands);
-            ctx.pushEvent("update", { commands: state.commands });
-            render();
-          });
+        // Handle remove command buttons using event delegation
+        form.addEventListener('click', (event) => {
+          if (event.target.closest('.remove-command')) {
+            event.preventDefault();
+            const button = event.target.closest('.remove-command');
+            const index = parseInt(button.dataset.index);
+            removeCommandRow(index);
+          }
         });
       }
 
-      function updateCommands() {
-        const commandInputs = ctx.root.querySelectorAll('.command-input');
-        const commands = [];
+      function addCommandRow() {
+        const commandsContainer = ctx.root.querySelector('.commands-container');
+        const newIndex = state.commands.length;
 
-        commandInputs.forEach(input => {
-          const cmdStr = input.value.trim();
-          if (cmdStr) {
-            const parts = cmdStr.split(/\s+/);
-            commands.push(parts);
+        // Add to state
+        state.commands.push('GET key');
+
+        // Create new DOM element
+        const commandRow = document.createElement('div');
+        commandRow.className = 'command-row';
+        commandRow.dataset.index = newIndex;
+
+        commandRow.innerHTML = `
+          <div class="command-input-group">
+            <input
+              class="input command-input"
+              type="text"
+              value='GET key'
+              placeholder='GET key'
+              data-index="${newIndex}"
+            >
+            <button type="button" class="button is-danger is-small remove-command" data-index="${newIndex}">
+              <span class="icon">×</span>
+            </button>
+          </div>
+        `;
+
+        commandsContainer.appendChild(commandRow);
+
+        // Attach event listeners to new elements
+        const newInput = commandRow.querySelector('.command-input');
+        newInput.addEventListener("change", (event) => {
+          const index = parseInt(event.target.dataset.index);
+          state.commands[index] = event.target.value;
+          updateServer();
+        });
+
+        // Remove button event listener is handled by event delegation
+
+        updateServer();
+      }
+
+      function removeCommandRow(indexToRemove) {
+        // Remove from state
+        state.commands.splice(indexToRemove, 1);
+
+        // Remove DOM element
+        const rowToRemove = ctx.root.querySelector(`[data-index="${indexToRemove}"]`);
+        if (rowToRemove) {
+          rowToRemove.remove();
+        }
+
+        // Update indices for remaining rows
+        const remainingRows = ctx.root.querySelectorAll('.command-row');
+        remainingRows.forEach((row, newIndex) => {
+          row.dataset.index = newIndex;
+          const input = row.querySelector('.command-input');
+          const button = row.querySelector('.remove-command');
+
+          if (input) input.dataset.index = newIndex;
+          if (button) button.dataset.index = newIndex;
+
+          // Show/hide remove button based on whether it's first
+          if (button) {
+            button.style.display = newIndex === 0 ? 'none' : 'inline-flex';
           }
         });
 
-        if (commands.length === 0) {
-          commands.push(["GET", "key"]);
-        }
-
-        state.commands = JSON.stringify(commands);
-        ctx.pushEvent("update", { commands: state.commands });
+        updateServer();
       }
 
-      // Handle server updates
-      ctx.handleEvent("update", (payload) => {
-        state = { ...state, ...payload };
-        render();
-      });
+      function updateServer() {
+        ctx.pushEvent("update", state);
+      }
 
-      // Handle synchronization
+      // Send form data on sync
       ctx.handleSync(() => {
-        // Trigger change events on all inputs to ensure state is synchronized
-        const inputs = ctx.root.querySelectorAll('input');
-        inputs.forEach(input => {
-          if (document.activeElement === input) {
-            input.dispatchEvent(new Event('input'));
-          }
-        });
+        const currentValues = getCurrentInputValues();
+        if (currentValues.config_variable !== null) state.config_variable = currentValues.config_variable;
+        if (currentValues.key !== null) state.key = currentValues.key;
+        if (currentValues.commands && currentValues.commands.length > 0) state.commands = currentValues.commands;
+        updateServer();
       });
 
       // Initial render
@@ -307,24 +401,22 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
 
     .input {
       width: 100%;
-      padding: 0.5rem 0.75rem;
+      padding: 0.5rem;
       border: 1px solid #d1d5db;
       border-radius: 0.375rem;
       font-size: 0.875rem;
-      background-color: #ffffff;
-      color: #374151;
-      transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+      line-height: 1.25rem;
     }
 
     .input:focus {
       outline: none;
       border-color: #3b82f6;
-      box-shadow: 0 0 0 0.125rem rgba(59, 130, 246, 0.25);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
     }
 
     .help {
-      font-size: 0.75rem;
       margin-top: 0.25rem;
+      font-size: 0.75rem;
       color: #6b7280;
     }
 
@@ -344,7 +436,7 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
 
     .command-input {
       flex: 1;
-      font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
     }
 
     .button {
@@ -368,15 +460,6 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
       background-color: #f3f4f6;
     }
 
-    .button.is-primary {
-      background-color: #3b82f6;
-      color: white;
-    }
-
-    .button.is-primary:hover {
-      background-color: #2563eb;
-    }
-
     .button.is-danger {
       background-color: #ef4444;
       color: white;
@@ -397,7 +480,7 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
       line-height: 1;
     }
 
-    /* Dark theme support */
+    /* Dark mode styles */
     @media (prefers-color-scheme: dark) {
       .label {
         color: #f3f4f6;

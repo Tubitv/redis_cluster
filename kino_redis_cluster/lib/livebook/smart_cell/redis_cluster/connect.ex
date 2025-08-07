@@ -49,10 +49,15 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
   def scan_binding(binding, _env, _ctx) do
     # Return any existing connection variables that might be referenced
     binding
-    |> Enum.filter(fn {key, _value} ->
-      String.contains?(to_string(key), "redis") or String.contains?(to_string(key), "cluster")
+    |> Enum.filter(fn {key, value} ->
+      # Only include variables that are atoms/strings and contain redis/cluster
+      # Skip PIDs and other non-enumerable values
+      is_atom(key) and is_struct(value) and
+        (String.contains?(to_string(key), "redis") or String.contains?(to_string(key), "cluster"))
     end)
     |> Map.new()
+  rescue
+    _ -> %{}
   end
 
   @impl true
@@ -98,10 +103,10 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
       #{var_name}
       """
 
-      {:ok, code}
+      code
     else
       {:error, reason} ->
-        {:error, reason}
+        "# Error: #{reason}"
     end
   end
 
@@ -193,26 +198,16 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
       const form = ctx.root.querySelector("form");
       const inputs = form.querySelectorAll("input");
 
+      // Add event listeners to form inputs
       inputs.forEach(input => {
-        input.addEventListener("input", (event) => {
-          const field = event.target.name;
-          const value = event.target.value;
-
-          // Send update to server
-          const updates = {};
-          updates[field] = value;
-          ctx.pushEvent("update", updates);
-        });
-      });
-
-      // Handle server updates
-      ctx.handleEvent("update", (payload) => {
-        Object.entries(payload).forEach(([field, value]) => {
-          const input = form.querySelector(`[name="${field}"]`);
-          // Only update if the input is not currently focused (being edited by user)
-          if (input && input.value !== value && document.activeElement !== input) {
-            input.value = value;
-          }
+        input.addEventListener("change", () => {
+          const formData = {};
+          inputs.forEach(inp => {
+            if (inp.name) {
+              formData[inp.name] = inp.value;
+            }
+          });
+          ctx.pushEvent("update", formData);
         });
       });
 
