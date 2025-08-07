@@ -13,20 +13,24 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
 
   @impl true
   def init(attrs, ctx) do
+    variable = attrs["variable"] || "result"
     config_variable = attrs["config_variable"] || "config"
     key = attrs["key"] || "key"
+    role = attrs["role"] || "master"
     # Parse commands from JSON or create default
     commands = parse_commands_from_attrs(attrs["commands"]) || ["GET key"]
 
-    ctx = assign(ctx, config_variable: config_variable, key: key, commands: commands)
+    ctx = assign(ctx, variable: variable, config_variable: config_variable, key: key, role: role, commands: commands)
     {:ok, ctx}
   end
 
   @impl true
   def handle_connect(ctx) do
     payload = %{
+      variable: ctx.assigns.variable,
       config_variable: ctx.assigns.config_variable,
       key: ctx.assigns.key,
+      role: ctx.assigns.role,
       commands: ctx.assigns.commands
     }
     {:ok, payload, ctx}
@@ -42,16 +46,20 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
   def to_attrs(ctx) do
     # Use string keys (from events) with atom key fallbacks (from init)
     %{
+      "variable" => ctx.assigns["variable"] || ctx.assigns.variable,
       "config_variable" => ctx.assigns["config_variable"] || ctx.assigns.config_variable,
       "key" => ctx.assigns["key"] || ctx.assigns.key,
+      "role" => ctx.assigns["role"] || ctx.assigns.role,
       "commands" => ctx.assigns["commands"] || ctx.assigns.commands
     }
   end
 
   @impl true
   def to_source(attrs) do
+    variable = attrs["variable"] || "result"
     config_var = attrs["config_variable"] || "config"
     key = attrs["key"] || "key"
+    role = attrs["role"] || "master"
     commands = attrs["commands"] || ["GET key"]
 
     # Parse commands from list of strings
@@ -62,25 +70,32 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
       "any" -> ":any"
       ":any" -> ":any"
       other_key ->
-        # # Check if key contains interpolation (#{...})
-        # if String.contains?(other_key, "\#{") do
-        #   # Return as string with interpolation - don't quote it so it evaluates
-        #   "\"#{other_key}\""
-        # else
-        #   # Return as regular quoted string
-        #   inspect(other_key)
-        # end
         "\"" <> other_key <> "\""
+    end
+
+    # Determine role parameter
+    role_param = case String.trim(role) do
+      "any" -> ":any"
+      "master" -> ":master"
+      "replica" -> ":replica"
+      _ -> ":master"
     end
 
     code = """
     # Redis Cluster Pipeline Commands
     commands = #{format_commands_for_output(parsed_commands)}
 
-    RedisCluster.Cluster.pipeline(#{config_var}, commands, #{key_param}, [])
+    #{variable} = RedisCluster.Cluster.pipeline(#{config_var}, commands, #{key_param}, [role: #{role_param}])
     """
 
     code
+  end
+
+  @impl true
+  def scan_binding(_binding, _env, _ctx) do
+    # The pipeline cell doesn't need to scan for existing variables
+    # It creates a new result variable
+    %{}
   end
 
   # Private helper functions
@@ -173,14 +188,6 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
 
   defp format_command_argument(arg) do
     "\"" <> arg <> "\""
-    # # Check if argument contains interpolation
-    # if String.contains?(arg, "\#{") do
-    #   # Return as string with interpolation - don't escape it
-    #   "\"#{arg}\""
-    # else
-    #   # Return as regular quoted string
-    #   inspect(arg)
-    # end
   end
 
   asset "main.js" do
@@ -189,36 +196,64 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
       ctx.importCSS("main.css");
 
       let state = {
+        variable: payload.variable || 'result',
         config_variable: payload.config_variable || 'config',
         key: payload.key || 'key',
+        role: payload.role || 'master',
         commands: payload.commands || ['GET key']
       };
 
       function render() {
         const formHtml = `
           <form>
-            <div class="field">
-              <label class="label">Configuration Variable</label>
-              <input class="input" type="text" name="config_variable" value="${state.config_variable}" placeholder="config">
-              <p class="help">Variable name containing the RedisCluster.Configuration struct</p>
-            </div>
-
-            <div class="field">
-              <label class="label">Key</label>
-              <input class="input" type="text" name="key" value="${state.key}" placeholder="key}">
-              <p class="help">Redis key for hash slot routing (use :any for any node, supports interpolation like \#{key})</p>
-            </div>
-
-            <div class="field">
-              <label class="label">Pipeline Commands</label>
-              <div class="commands-container">
-                ${renderCommands()}
+            <div class="header">
+              <div class="header-content">
+                <span class="header-title">RedisCluster</span>
+                <span class="header-label">CONFIGURATION</span>
+                <input class="header-input" type="text" name="config_variable" value="${state.config_variable}" placeholder="config">
+                <span class="header-label">ASSIGN TO</span>
+                <input class="header-input" type="text" name="variable" value="${state.variable || ''}" placeholder="result">
+                <button type="button" class="help-button" title="Toggle help">
+                  <span class="help-icon">?</span>
+                </button>
               </div>
-              <button type="button" class="button add-command">
-                <span class="icon">+</span>
-                <span>Add Command</span>
-              </button>
-              <p class="help">Redis commands to execute in pipeline. Space-separated with quoted values (e.g., SET key "some value")</p>
+              <div class="help-content" style="display: none;">
+                <p>You may use Elixir string interpolation in the routing key, like <code>\#{key}</code>.</p>
+                <p>For commands that don't need a key, use <code>:any</code> as the key.</p>
+                <p>To dynamically inject values into commands use Elixir string interpolation, like <code> SET \#{key} \#{value}</code>.</p>
+              </div>
+            </div>
+
+            <div class="body">
+              <div class="columns">
+                <div class="column">
+                  <div class="field">
+                    <label class="label">Key</label>
+                    <input class="input" type="text" name="key" value="${state.key}" placeholder="key">
+                  </div>
+                </div>
+                <div class="column">
+                  <div class="field">
+                    <label class="label">Role</label>
+                    <select class="input" name="role" value="${state.role || 'master'}">
+                      <option value="any" ${state.role === 'any' ? 'selected' : ''}>Any</option>
+                      <option value="master" ${(state.role || 'master') === 'master' ? 'selected' : ''}>Master</option>
+                      <option value="replica" ${state.role === 'replica' ? 'selected' : ''}>Replica</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div class="field">
+                <label class="label">Pipeline Commands</label>
+                <div class="commands-container">
+                  ${renderCommands()}
+                </div>
+                <button type="button" class="button add-command">
+                  <span class="icon">+</span>
+                  <span>Add Command</span>
+                </button>
+              </div>
             </div>
           </form>
         `;
@@ -255,12 +290,26 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
         const form = ctx.root.querySelector("form");
 
         // Handle basic field updates
-        form.querySelectorAll('input[name="config_variable"], input[name="key"]').forEach(input => {
+        form.querySelectorAll('input[name="config_variable"], input[name="key"], input[name="variable"], select[name="role"]').forEach(input => {
           input.addEventListener("change", (event) => {
             state[event.target.name] = event.target.value;
             updateServer();
           });
         });
+
+        // Handle help button toggle
+        const helpButton = form.querySelector('.help-button');
+        if (helpButton) {
+          helpButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            const helpContent = form.querySelector('.help-content');
+            if (helpContent.style.display === 'none') {
+              helpContent.style.display = 'block';
+            } else {
+              helpContent.style.display = 'none';
+            }
+          });
+        }
 
         // Handle command input changes
         form.querySelectorAll('.command-input').forEach(input => {
@@ -379,6 +428,194 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
 
   asset "main.css" do
     """
+    /* Database cell header styling */
+    .header {
+      background: #e9eeff;
+      border: 1px solid #c7d2fe;
+      border-radius: 0.5rem 0.5rem 0 0;
+      padding: 0.875rem 1.25rem;
+      margin-bottom: 0;
+    }
+
+    .header-content {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .header-title {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-weight: 800;
+      font-size: 1rem;
+      color: #445668;
+      margin-right: 0.75rem;
+    }
+
+    .header-label {
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-weight: 500;
+      font-size: 0.875rem;
+      color: #445668;
+      text-transform: uppercase;
+      white-space: nowrap;
+      margin-left: 0.5rem;
+    }
+
+    .header-label:first-of-type {
+      margin-left: 0;
+    }
+
+    .header-input {
+      flex: 0 0 auto;
+      width: 120px;
+      padding: 0.5rem 0.75rem;
+      border: 1px solid #c7d2fe;
+      border-radius: 0.375rem;
+      font-size: 0.875rem;
+      background-color: #ffffff;
+      color: #374151;
+      transition: border-color 0.15s ease-in-out;
+    }
+
+    .header-input:focus {
+      outline: none;
+      border-color: #3b82f6;
+    }
+
+    .header-input::placeholder {
+      color: #9ca3af;
+    }
+
+    .help-button {
+      flex: 0 0 auto;
+      width: 24px;
+      height: 24px;
+      border: 1px solid #c7d2fe;
+      border-radius: 50%;
+      background-color: #ffffff;
+      color: #445668;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-left: auto;
+      transition: all 0.15s ease-in-out;
+    }
+
+    .help-button:hover {
+      background-color: #f0f4ff;
+      border-color: #a5b4fc;
+    }
+
+    .help-button:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+    }
+
+    .help-icon {
+      font-size: 0.75rem;
+      font-weight: 600;
+      line-height: 1;
+    }
+
+    .help-content {
+      margin-top: 0.75rem;
+      padding: 0.75rem 1rem;
+      background-color: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.375rem;
+      font-size: 0.875rem;
+      color: #475569;
+      line-height: 1.4;
+    }
+
+    .help-content p {
+      margin: 0;
+    }
+
+    .help-content code {
+      background-color: #e2e8f0;
+      color: #1e293b;
+      padding: 0.125rem 0.25rem;
+      border-radius: 0.25rem;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 0.8125rem;
+    }
+
+    /* Body styling */
+    .body {
+      border: 1px solid #e5e7eb;
+      border-top: none;
+      border-radius: 0 0 0.5rem 0.5rem;
+      padding: 1.25rem;
+      background-color: #ffffff;
+    }
+
+    /* Header dark theme support */
+    [data-theme="dark"] .header,
+    @media (prefers-color-scheme: dark) {
+      .header {
+        background: #1e293b;
+        border-color: #475569;
+      }
+
+      .header-title {
+        color: #cbd5e1;
+      }
+
+      .header-label {
+        color: #cbd5e1;
+      }
+
+      .header-input {
+        background-color: #1f2937;
+        border-color: #4b5563;
+        color: #f9fafb;
+      }
+
+      .header-input:focus {
+        border-color: #60a5fa;
+      }
+
+      .header-input::placeholder {
+        color: #6b7280;
+      }
+
+      .help-button {
+        background-color: #1f2937;
+        border-color: #4b5563;
+        color: #cbd5e1;
+      }
+
+      .help-button:hover {
+        background-color: #374151;
+        border-color: #6b7280;
+      }
+
+      .help-button:focus {
+        border-color: #60a5fa;
+        box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.1);
+      }
+
+      .help-content {
+        background-color: #1f2937;
+        border-color: #374151;
+        color: #cbd5e1;
+      }
+
+      .help-content code {
+        background-color: #374151;
+        color: #f1f5f9;
+      }
+
+      .body {
+        background-color: #1f2937;
+        border-color: #374151;
+      }
+    }
+
     /* Modern Livebook styling for Pipeline */
     .field {
       margin-bottom: 1.25rem;
@@ -399,6 +636,8 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
 
     .input {
       width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
       padding: 0.625rem 0.75rem;
       border: 1px solid #d1d5db;
       border-radius: 0.375rem;
@@ -427,6 +666,18 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
       margin-top: 0.25rem;
       color: #9ca3af;
       line-height: 1.3;
+    }
+
+    .columns {
+      display: flex;
+      gap: 1.5rem;
+      align-items: start;
+      margin-bottom: 1.5rem;
+    }
+
+    .column {
+      flex: 1;
+      min-width: 0;
     }
 
     /* Command-specific styling */
@@ -627,6 +878,37 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
       .remove-command:hover {
         background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
         box-shadow: 0 4px 12px 0 rgba(239, 68, 68, 0.4);
+      }
+    }
+
+    /* Responsive design */
+    @media (max-width: 768px) {
+      .header-content {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.75rem;
+      }
+
+      .header-input {
+        width: 100%;
+        max-width: 200px;
+      }
+
+      .header-label {
+        margin-left: 0;
+      }
+
+      .columns {
+        flex-direction: column;
+        gap: 1rem;
+      }
+
+      .command-input-group {
+        flex-direction: column;
+      }
+
+      .button.is-small {
+        align-self: flex-start;
       }
     }
     """

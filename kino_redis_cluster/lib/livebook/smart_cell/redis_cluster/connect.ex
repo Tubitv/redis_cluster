@@ -253,8 +253,8 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
 
     .header-title {
       font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      font-weight: 500;
-      font-size: 0.875rem;
+      font-weight: 800;
+      font-size: 1rem;
       color: #445668;
       margin-right: 0.75rem;
     }
