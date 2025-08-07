@@ -379,90 +379,162 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
 
   asset "main.css" do
     """
+    /* Modern Livebook styling for Pipeline */
     .field {
-      margin-bottom: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .field:last-child {
+      margin-bottom: 0;
     }
 
     .label {
       display: block;
-      font-weight: 600;
-      margin-bottom: 0.5rem;
-      color: #374151;
+      font-weight: 500;
+      font-size: 0.875rem;
+      margin-bottom: 0.375rem;
+      color: #6b7280;
+      text-transform: none;
     }
 
     .input {
       width: 100%;
-      padding: 0.5rem;
+      padding: 0.625rem 0.75rem;
       border: 1px solid #d1d5db;
       border-radius: 0.375rem;
       font-size: 0.875rem;
-      line-height: 1.25rem;
+      background-color: #f9fafb;
+      color: #374151;
+      transition: border-color 0.15s ease-in-out, background-color 0.15s ease-in-out;
+    }
+
+    .input:hover {
+      background-color: #f3f4f6;
     }
 
     .input:focus {
       outline: none;
       border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+      background-color: #ffffff;
+    }
+
+    .input::placeholder {
+      color: #9ca3af;
     }
 
     .help {
-      margin-top: 0.25rem;
       font-size: 0.75rem;
-      color: #6b7280;
+      margin-top: 0.25rem;
+      color: #9ca3af;
+      line-height: 1.3;
     }
 
+    /* Command-specific styling */
     .commands-container {
-      margin-bottom: 0.75rem;
+      margin-bottom: 1rem;
+      padding: 1rem;
+      background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+      border: 1.5px solid #e2e8f0;
+      border-radius: 0.75rem;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
     }
 
     .command-row {
-      margin-bottom: 0.5rem;
+      margin-bottom: 0.75rem;
+      animation: slideIn 0.2s ease-out;
+    }
+
+    .command-row:last-child {
+      margin-bottom: 0;
     }
 
     .command-input-group {
       display: flex;
-      gap: 0.5rem;
+      gap: 0.75rem;
       align-items: center;
+      padding: 0.5rem;
+      background-color: #ffffff;
+      border: 1px solid #e5e7eb;
+      border-radius: 0.5rem;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+      transition: all 0.2s ease-in-out;
+    }
+
+    .command-input-group:hover {
+      border-color: #d1d5db;
+      box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.06);
     }
 
     .command-input {
       flex: 1;
-      font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+      padding: 0.5rem;
+      border: none;
+      background: transparent;
+      font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace;
+      font-size: 0.875rem;
+      color: #374151;
+      border-radius: 0.25rem;
     }
 
+    .command-input:focus {
+      outline: none;
+      background-color: #f8fafc;
+    }
+
+    /* Button styling */
     .button {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      padding: 0.375rem 0.75rem;
-      border: 1px solid transparent;
-      border-radius: 0.375rem;
+      padding: 0.625rem 1rem;
+      border: 1.5px solid transparent;
+      border-radius: 0.5rem;
       font-size: 0.875rem;
-      font-weight: 500;
+      font-weight: 600;
       cursor: pointer;
-      transition: all 0.15s ease-in-out;
+      transition: all 0.2s ease-in-out;
       text-decoration: none;
-      background-color: #f9fafb;
-      color: #374151;
-      gap: 0.25rem;
+      gap: 0.5rem;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     }
 
-    .button:hover {
-      background-color: #f3f4f6;
-    }
-
-    .button.is-danger {
-      background-color: #ef4444;
+    .add-command {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
       color: white;
+      border-color: #2563eb;
     }
 
-    .button.is-danger:hover {
-      background-color: #dc2626;
+    .add-command:hover {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      box-shadow: 0 4px 12px 0 rgba(37, 99, 235, 0.4);
+      transform: translateY(-1px);
     }
 
-    .button.is-small {
-      padding: 0.25rem 0.5rem;
+    .add-command:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 4px 0 rgba(37, 99, 235, 0.4);
+    }
+
+    .remove-command {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: white;
+      border-color: #dc2626;
+      padding: 0.375rem;
+      border-radius: 0.375rem;
       font-size: 0.75rem;
+      min-width: 2rem;
+      height: 2rem;
+    }
+
+    .remove-command:hover {
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      box-shadow: 0 4px 12px 0 rgba(220, 38, 38, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .remove-command:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 4px 0 rgba(220, 38, 38, 0.4);
     }
 
     .icon {
@@ -471,33 +543,90 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
       line-height: 1;
     }
 
-    /* Dark mode styles */
+
+
+    /* Animations */
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Dark theme support */
+    [data-theme="dark"] .label,
     @media (prefers-color-scheme: dark) {
       .label {
-        color: #f3f4f6;
+        color: #9ca3af;
       }
 
       .input {
-        background-color: #1f2937;
+        background-color: #374151;
         border-color: #4b5563;
-        color: #f3f4f6;
+        color: #f9fafb;
+      }
+
+      .input:hover {
+        background-color: #4b5563;
       }
 
       .input:focus {
         border-color: #60a5fa;
+        background-color: #1f2937;
+      }
+
+      .input::placeholder {
+        color: #6b7280;
       }
 
       .help {
-        color: #9ca3af;
+        color: #6b7280;
       }
 
-      .button {
-        background-color: #374151;
-        color: #f3f4f6;
+      .commands-container {
+        background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+        border-color: #374151;
       }
 
-      .button:hover {
-        background-color: #4b5563;
+      .command-input-group {
+        background-color: #1f2937;
+        border-color: #374151;
+      }
+
+      .command-input-group:hover {
+        border-color: #4b5563;
+      }
+
+      .command-input {
+        color: #f9fafb;
+      }
+
+      .command-input:focus {
+        background-color: #111827;
+      }
+
+      .add-command {
+        background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+        border-color: #3b82f6;
+      }
+
+      .add-command:hover {
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        box-shadow: 0 4px 12px 0 rgba(96, 165, 250, 0.4);
+      }
+
+      .remove-command {
+        background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+        border-color: #ef4444;
+      }
+
+      .remove-command:hover {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        box-shadow: 0 4px 12px 0 rgba(239, 68, 68, 0.4);
       }
     }
     """
