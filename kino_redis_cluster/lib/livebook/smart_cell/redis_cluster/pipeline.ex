@@ -100,7 +100,16 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
 
   # Private helper functions
 
+  defp parse_commands_from_attrs(commands) when is_list(commands) do
+    # Commands are already a list of strings (from saved state)
+    Enum.map(commands, fn
+      cmd when is_binary(cmd) -> cmd
+      cmd when is_list(cmd) -> Enum.join(cmd, " ")
+      _ -> "GET key"
+    end)
+  end
   defp parse_commands_from_attrs(commands_json) when is_binary(commands_json) do
+    # Commands are JSON string (legacy format)
     case Jason.decode(commands_json) do
       {:ok, commands} when is_list(commands) ->
         Enum.map(commands, fn
@@ -265,13 +274,14 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
       function renderCommands() {
         return state.commands.map((cmd, index) => {
           const isFirst = index === 0;
+          const escapedCmd = cmd.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
           return `
             <div class="command-row" data-index="${index}">
               <div class="command-input-group">
                 <input
                   class="input command-input"
                   type="text"
-                  value="${cmd}"
+                  value="${escapedCmd}"
                   placeholder="GET key"
                   data-index="${index}"
                 >
@@ -311,13 +321,22 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
           });
         }
 
-        // Handle command input changes
-        form.querySelectorAll('.command-input').forEach(input => {
-          input.addEventListener("change", (event) => {
+        // Handle command input changes using event delegation
+        form.addEventListener('change', (event) => {
+          if (event.target.classList.contains('command-input')) {
             const index = parseInt(event.target.dataset.index);
             state.commands[index] = event.target.value;
             updateServer();
-          });
+          }
+        });
+
+        // Handle command input changes on input (real-time) using event delegation
+        form.addEventListener('input', (event) => {
+          if (event.target.classList.contains('command-input')) {
+            const index = parseInt(event.target.dataset.index);
+            state.commands[index] = event.target.value;
+            updateServer();
+          }
         });
 
         // Handle add command button
@@ -357,8 +376,8 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
             <input
               class="input command-input"
               type="text"
-              value='GET key'
-              placeholder='GET key'
+              value="GET key"
+              placeholder="GET key"
               data-index="${newIndex}"
             >
             <button type="button" class="button is-danger is-small remove-command" data-index="${newIndex}">
@@ -369,16 +388,7 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
 
         commandsContainer.appendChild(commandRow);
 
-        // Attach event listeners to new elements
-        const newInput = commandRow.querySelector('.command-input');
-        newInput.addEventListener("change", (event) => {
-          const index = parseInt(event.target.dataset.index);
-          state.commands[index] = event.target.value;
-          updateServer();
-        });
-
-        // Remove button event listener is handled by event delegation
-
+        // Event listeners are handled by event delegation
         updateServer();
       }
 
