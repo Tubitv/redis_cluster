@@ -63,8 +63,7 @@ defmodule RedisCluster.MixProject do
       {:telemetry, "~> 1.0"},
       {:ex_doc, "~> 0.34", only: [:dev], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
-      {:mox, "~> 1.0", only: [:test]},
-      {:kino, "~> 0.16.1"}
+      {:mox, "~> 1.0", only: [:test]}
     ]
   end
 
