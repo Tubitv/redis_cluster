@@ -21,7 +21,8 @@ defmodule KinoRedisCluster.MixProject do
   defp deps do
     [
       {:redis_cluster, path: ".."},
-      {:kino, "~> 0.16"}
+      {:kino, "~> 0.16"},
+      {:jason, "~> 1.4"}
     ]
   end
 end

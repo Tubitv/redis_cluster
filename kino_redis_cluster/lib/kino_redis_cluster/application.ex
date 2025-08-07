@@ -7,8 +7,12 @@ defmodule KinoRedisCluster.Application do
 
   @impl true
   def start(_type, _args) do
+    # Register the main Redis Cluster smart cells
     Kino.SmartCell.register(Livebook.SmartCell.RedisCluster.Connect)
     Kino.SmartCell.register(Livebook.SmartCell.RedisCluster.Pipeline)
+
+    # Keep SimpleConnectCell for development/testing if needed
+    Kino.SmartCell.register(SimpleConnectCell)
 
     children = [
       # Starts a worker by calling: KinoRedisCluster.Worker.start_link(arg)

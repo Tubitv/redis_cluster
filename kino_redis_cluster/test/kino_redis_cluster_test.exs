@@ -1,8 +1,8 @@
 defmodule KinoRedisClusterTest do
   use ExUnit.Case
-  doctest KinoRedisCluster
 
-  test "greets the world" do
-    assert KinoRedisCluster.hello() == :world
+  test "application starts successfully" do
+    # Test that the application starts without errors
+    assert Process.whereis(KinoRedisCluster.Supervisor) != nil
   end
 end
