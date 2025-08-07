@@ -1,4 +1,11 @@
 defmodule Livebook.SmartCell.RedisCluster.Connect do
+  @moduledoc """
+  A Livebook smart cell for connecting to Redis Cluster.
+
+  Provides a form-based interface to configure and establish a connection
+  to a Redis cluster, returning a `RedisCluster.Configuration` struct.
+  """
+
   use Kino.JS
   use Kino.JS.Live
   use Kino.SmartCell, name: "RedisCluster: Connect"
@@ -92,7 +99,7 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
         shard_discovery: Module.concat([name, ShardDiscovery])
       }
 
-            # Start the cluster only if not already started
+      # Start the cluster only if not already started
       case RedisCluster.Cluster.start_link(#{var_name}) do
         {:ok, _pid} -> :ok
         {:error, {:already_started, _pid}} -> :ok

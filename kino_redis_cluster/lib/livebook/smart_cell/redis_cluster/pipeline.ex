@@ -1,4 +1,12 @@
 defmodule Livebook.SmartCell.RedisCluster.Pipeline do
+  @moduledoc """
+  A Livebook smart cell for executing Redis pipeline commands on a cluster.
+
+  Provides a dynamic form interface to build and execute multiple Redis commands
+  in a single pipeline operation, with support for string interpolation and
+  quoted arguments.
+  """
+
   use Kino.JS
   use Kino.JS.Live
   use Kino.SmartCell, name: "RedisCluster: Run Pipeline"
@@ -6,7 +14,7 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
   @impl true
   def init(attrs, ctx) do
     config_variable = attrs["config_variable"] || "config"
-    key = attrs["key"] || "\#{key}"
+    key = attrs["key"] || "key"
     # Parse commands from JSON or create default
     commands = parse_commands_from_attrs(attrs["commands"]) || ["GET key"]
 
@@ -43,7 +51,7 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
   @impl true
   def to_source(attrs) do
     config_var = attrs["config_variable"] || "config"
-    key = attrs["key"] || "\#{key}"
+    key = attrs["key"] || "key"
     commands = attrs["commands"] || ["GET key"]
 
     # Parse commands from list of strings
@@ -54,14 +62,15 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
       "any" -> ":any"
       ":any" -> ":any"
       other_key ->
-        # Check if key contains interpolation (#{...})
-        if String.contains?(other_key, "\#{") do
-          # Return as string with interpolation - don't quote it so it evaluates
-          "\"#{other_key}\""
-        else
-          # Return as regular quoted string
-          inspect(other_key)
-        end
+        # # Check if key contains interpolation (#{...})
+        # if String.contains?(other_key, "\#{") do
+        #   # Return as string with interpolation - don't quote it so it evaluates
+        #   "\"#{other_key}\""
+        # else
+        #   # Return as regular quoted string
+        #   inspect(other_key)
+        # end
+        "\"" <> other_key <> "\""
     end
 
     code = """
@@ -163,14 +172,15 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
   end
 
   defp format_command_argument(arg) do
-    # Check if argument contains interpolation
-    if String.contains?(arg, "\#{") do
-      # Return as string with interpolation - don't escape it
-      "\"#{arg}\""
-    else
-      # Return as regular quoted string
-      inspect(arg)
-    end
+    "\"" <> arg <> "\""
+    # # Check if argument contains interpolation
+    # if String.contains?(arg, "\#{") do
+    #   # Return as string with interpolation - don't escape it
+    #   "\"#{arg}\""
+    # else
+    #   # Return as regular quoted string
+    #   inspect(arg)
+    # end
   end
 
   asset "main.js" do
@@ -180,7 +190,7 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
 
       let state = {
         config_variable: payload.config_variable || 'config',
-        key: payload.key || '\#{key}',
+        key: payload.key || 'key',
         commands: payload.commands || ['GET key']
       };
 
@@ -195,7 +205,7 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
 
             <div class="field">
               <label class="label">Key</label>
-              <input class="input" type="text" name="key" value="${state.key}" placeholder="\#{key}">
+              <input class="input" type="text" name="key" value="${state.key}" placeholder="key}">
               <p class="help">Redis key for hash slot routing (use :any for any node, supports interpolation like \#{key})</p>
             </div>
 
@@ -239,21 +249,6 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
             </div>
           `;
         }).join('');
-      }
-
-      function getCurrentInputValues() {
-        const form = ctx.root.querySelector("form");
-        if (!form) return {};
-
-        const configVar = form.querySelector('input[name="config_variable"]');
-        const keyInput = form.querySelector('input[name="key"]');
-        const commandInputs = form.querySelectorAll('.command-input');
-
-        return {
-          config_variable: configVar ? configVar.value : null,
-          key: keyInput ? keyInput.value : null,
-          commands: Array.from(commandInputs).map(input => input.value)
-        };
       }
 
       function attachEventListeners() {
@@ -373,10 +368,6 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
 
       // Send form data on sync
       ctx.handleSync(() => {
-        const currentValues = getCurrentInputValues();
-        if (currentValues.config_variable !== null) state.config_variable = currentValues.config_variable;
-        if (currentValues.key !== null) state.key = currentValues.key;
-        if (currentValues.commands && currentValues.commands.length > 0) state.commands = currentValues.commands;
         updateServer();
       });
 
