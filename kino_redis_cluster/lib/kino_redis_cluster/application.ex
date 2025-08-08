@@ -5,7 +5,7 @@ defmodule KinoRedisCluster.Application do
 
   use Application
 
-    @impl true
+  @impl true
   def start(_type, _args) do
     # Register the Redis Cluster smart cells
     Kino.SmartCell.register(Livebook.SmartCell.RedisCluster.Connect)

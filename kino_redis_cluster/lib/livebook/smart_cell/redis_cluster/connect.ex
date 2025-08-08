@@ -18,7 +18,9 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
     port = attrs["port"] || "6379"
     pool_size = attrs["pool_size"] || "10"
 
-    ctx = assign(ctx, variable: variable, name: name, host: host, port: port, pool_size: pool_size)
+    ctx =
+      assign(ctx, variable: variable, name: name, host: host, port: port, pool_size: pool_size)
+
     {:ok, ctx}
   end
 
@@ -31,6 +33,7 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
       port: ctx.assigns.port,
       pool_size: ctx.assigns.pool_size
     }
+
     {:ok, payload, ctx}
   end
 
@@ -80,11 +83,10 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
          {:ok, validated_host} <- validate_host(host),
          {:ok, validated_port} <- validate_port(port),
          {:ok, validated_pool_size} <- validate_pool_size(pool_size) do
-
       # Use the specified variable name, clean it up for safety
       var_name = variable |> String.trim() |> String.replace(~r/[^a-zA-Z0-9_]/, "_")
 
-    code = """
+      code = """
       name = #{inspect(validated_name)}
 
       #{var_name} = %RedisCluster.Configuration{
@@ -97,7 +99,6 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
         cluster: Module.concat([name, Cluster]),
         shard_discovery: Module.concat([name, ShardDiscovery])
       }
-    }
 
       # Start the cluster only if not already started
       case RedisCluster.Cluster.start_link(#{var_name}) do
@@ -136,6 +137,7 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
     case Integer.parse(port) do
       {port_num, ""} when port_num > 0 and port_num <= 65535 ->
         {:ok, port_num}
+
       _ ->
         {:error, "Port must be a number between 1 and 65535"}
     end
@@ -145,6 +147,7 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
     case Integer.parse(pool_size) do
       {size, ""} when size in 1..100 ->
         {:ok, size}
+
       _ ->
         {:error, "Pool size must be a number between 1 and 100"}
     end

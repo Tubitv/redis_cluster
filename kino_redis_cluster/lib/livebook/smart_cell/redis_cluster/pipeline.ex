@@ -20,7 +20,15 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
     # Parse commands from JSON or create default
     commands = parse_commands_from_attrs(attrs["commands"]) || ["GET key"]
 
-    ctx = assign(ctx, variable: variable, config_variable: config_variable, key: key, role: role, commands: commands)
+    ctx =
+      assign(ctx,
+        variable: variable,
+        config_variable: config_variable,
+        key: key,
+        role: role,
+        commands: commands
+      )
+
     {:ok, ctx}
   end
 
@@ -33,6 +41,7 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
       role: ctx.assigns.role,
       commands: ctx.assigns.commands
     }
+
     {:ok, payload, ctx}
   end
 
@@ -66,20 +75,26 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
     parsed_commands = parse_command_strings(commands)
 
     # Determine key parameter based on input
-    key_param = case String.trim(key) do
-      "any" -> ":any"
-      ":any" -> ":any"
-      other_key ->
-        "\"" <> other_key <> "\""
-    end
+    key_param =
+      case String.trim(key) do
+        "any" ->
+          ":any"
+
+        ":any" ->
+          ":any"
+
+        other_key ->
+          "\"" <> other_key <> "\""
+      end
 
     # Determine role parameter
-    role_param = case String.trim(role) do
-      "any" -> ":any"
-      "master" -> ":master"
-      "replica" -> ":replica"
-      _ -> ":master"
-    end
+    role_param =
+      case String.trim(role) do
+        "any" -> ":any"
+        "master" -> ":master"
+        "replica" -> ":replica"
+        _ -> ":master"
+      end
 
     code = """
     # Redis Cluster Pipeline Commands
@@ -108,6 +123,7 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
       _ -> "GET key"
     end)
   end
+
   defp parse_commands_from_attrs(commands_json) when is_binary(commands_json) do
     # Commands are JSON string (legacy format)
     case Jason.decode(commands_json) do
@@ -117,9 +133,12 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
           cmd when is_binary(cmd) -> cmd
           _ -> "GET key"
         end)
-      _ -> nil
+
+      _ ->
+        nil
     end
   end
+
   defp parse_commands_from_attrs(_), do: nil
 
   defp parse_command_strings(command_strings) do
@@ -172,7 +191,8 @@ defmodule Livebook.SmartCell.RedisCluster.Pipeline do
 
     case String.split(str, quote_char, parts: 2) do
       [value, rest] -> {value, rest}
-      [_] -> :error  # No closing quote found
+      # No closing quote found
+      [_] -> :error
     end
   end
 
