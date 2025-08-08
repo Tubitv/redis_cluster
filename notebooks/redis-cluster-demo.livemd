@@ -5,7 +5,7 @@
 ```elixir
 Mix.install([
   {:redis_cluster, path: Path.expand("../", __DIR__)},
-  {:kino_vega_lite, "~> 0.1.13"}
+  {:kino_redis_cluster, path: Path.expand("../kino_redis_cluster", __DIR__)}
 ])
 ```
 
@@ -77,7 +77,31 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-#PID<0.374.0>
+#PID<0.294.0>
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+
+11:21:45.021 [debug] Discovering shards for Elixir.Test.Redis
+
+11:21:45.053 [debug] Found cluster info
+Slot Start | Slot End | Host      | Port | Role    | Health
+---------- | -------- | --------- | ---- | ------- | ------
+0          | 5460     | 127.0.0.1 | 7000 | replica | online
+0          | 5460     | 127.0.0.1 | 7003 | replica | online
+0          | 5460     | 127.0.0.1 | 7006 | master  | online
+0          | 5460     | 127.0.0.1 | 7010 | replica | online
+0          | 5460     | 127.0.0.1 | 7011 | replica | online
+5461       | 10922    | 127.0.0.1 | 7001 | replica | online
+5461       | 10922    | 127.0.0.1 | 7007 | replica | online
+5461       | 10922    | 127.0.0.1 | 7009 | master  | online
+10923      | 16383    | 127.0.0.1 | 7002 | replica | online
+10923      | 16383    | 127.0.0.1 | 7004 | master  | online
+10923      | 16383    | 127.0.0.1 | 7005 | replica | online
+10923      | 16383    | 127.0.0.1 | 7008 | replica | online
+
 ```
 
 This starts a supervisor that watches connection pools, among other things. 
@@ -92,82 +116,82 @@ Kino.Process.render_sup_tree(pid, direction: :left_right)
 
 ```mermaid
 graph LR;
-2(Test.Redis.Pool__):::supervisor ---> 23(#PID<0.436.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 35(#PID<0.448.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 15(#PID<0.426.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 9(#PID<0.434.0>):::worker
-40(Test.Redis.Registry__.PIDPartition0):::worker -..- 37(#PID<0.442.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 6(#PID<0.452.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 36(#PID<0.391.0>):::worker
-17(#PID<0.406.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-2(Test.Redis.Pool__):::supervisor ---> 31(#PID<0.418.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 7(#PID<0.410.0>):::worker
-20(#PID<0.424.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-40(Test.Redis.Registry__.PIDPartition0):::worker -..- 24(#PID<0.428.0>):::worker
-22(#PID<0.395.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-2(Test.Redis.Pool__):::supervisor ---> 3(#PID<0.408.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 18(#PID<0.393.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 22(#PID<0.395.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 5(#PID<0.446.0>):::worker
-40(Test.Redis.Registry__.PIDPartition0):::worker -..- 28(#PID<0.420.0>):::worker
-40(Test.Redis.Registry__.PIDPartition0):::worker -..- 32(#PID<0.422.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 38(#PID<0.438.0>):::worker
-40(Test.Redis.Registry__.PIDPartition0):::worker -..- 26(#PID<0.450.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 29(#PID<0.387.0>):::worker
-40(Test.Redis.Registry__.PIDPartition0):::worker -..- 35(#PID<0.448.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 26(#PID<0.450.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 20(#PID<0.424.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 17(#PID<0.406.0>):::worker
-13(#PID<0.440.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-2(Test.Redis.Pool__):::supervisor ---> 14(#PID<0.404.0>):::worker
-40(Test.Redis.Registry__.PIDPartition0):::worker -..- 36(#PID<0.391.0>):::worker
-21(#PID<0.381.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-4(#PID<0.430.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-2(Test.Redis.Pool__):::supervisor ---> 28(#PID<0.420.0>):::worker
-40(Test.Redis.Registry__.PIDPartition0):::worker -..- 27(#PID<0.402.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 24(#PID<0.428.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 13(#PID<0.440.0>):::worker
-23(#PID<0.436.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-11(#PID<0.383.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-2(Test.Redis.Pool__):::supervisor ---> 11(#PID<0.383.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 27(#PID<0.402.0>):::worker
-14(#PID<0.404.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-15(#PID<0.426.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-2(Test.Redis.Pool__):::supervisor ---> 10(#PID<0.385.0>):::worker
-12(#PID<0.416.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-40(Test.Redis.Registry__.PIDPartition0):::worker -..- 38(#PID<0.438.0>):::worker
-40(Test.Redis.Registry__.PIDPartition0):::worker -..- 31(#PID<0.418.0>):::worker
-19(#PID<0.398.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 23(#PID<0.329.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 35(#PID<0.367.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 15(#PID<0.321.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 9(#PID<0.303.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 37(#PID<0.319.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 6(#PID<0.347.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 36(#PID<0.323.0>):::worker
+17(#PID<0.333.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 31(#PID<0.327.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 7(#PID<0.351.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 20(#PID<0.357.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 24(#PID<0.311.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 22(#PID<0.337.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 3(#PID<0.341.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 18(#PID<0.355.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 22(#PID<0.337.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 5(#PID<0.339.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 28(#PID<0.371.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 32(#PID<0.359.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 38(#PID<0.361.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 26(#PID<0.363.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 29(#PID<0.301.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 35(#PID<0.367.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 26(#PID<0.363.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 20(#PID<0.357.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 17(#PID<0.333.0>):::worker
+13(#PID<0.313.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 14(#PID<0.335.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 36(#PID<0.323.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 21(#PID<0.317.0>):::worker
+4(#PID<0.315.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 28(#PID<0.371.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 27(#PID<0.345.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 24(#PID<0.311.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 13(#PID<0.313.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 23(#PID<0.329.0>):::worker
+11(#PID<0.353.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 11(#PID<0.353.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 27(#PID<0.345.0>):::worker
+14(#PID<0.335.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+15(#PID<0.321.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 10(#PID<0.349.0>):::worker
+12(#PID<0.325.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 38(#PID<0.361.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 31(#PID<0.327.0>):::worker
+19(#PID<0.307.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
 0(Test.Redis.Cluster__):::root ---> 2(Test.Redis.Pool__):::supervisor
 39(Test.Redis.Registry__):::supervisor ---> 40(Test.Redis.Registry__.PIDPartition0):::worker
-5(#PID<0.446.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-9(#PID<0.434.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-40(Test.Redis.Registry__.PIDPartition0):::worker -..- 33(#PID<0.414.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 25(#PID<0.389.0>):::worker
-40(Test.Redis.Registry__.PIDPartition0):::worker -..- 29(#PID<0.387.0>):::worker
-40(Test.Redis.Registry__.PIDPartition0):::worker -..- 25(#PID<0.389.0>):::worker
+5(#PID<0.339.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+9(#PID<0.303.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 33(#PID<0.365.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 25(#PID<0.343.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 29(#PID<0.301.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 25(#PID<0.343.0>):::worker
 0(Test.Redis.Cluster__):::root ---> 1(Test.Redis.ShardDiscovery__):::worker
 0(Test.Redis.Cluster__):::root ---> 39(Test.Redis.Registry__):::supervisor
-2(Test.Redis.Pool__):::supervisor ---> 12(#PID<0.416.0>):::worker
-16(#PID<0.444.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-40(Test.Redis.Registry__.PIDPartition0):::worker -..- 34(#PID<0.412.0>):::worker
-7(#PID<0.410.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-2(Test.Redis.Pool__):::supervisor ---> 4(#PID<0.430.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 34(#PID<0.412.0>):::worker
-6(#PID<0.452.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-2(Test.Redis.Pool__):::supervisor ---> 30(#PID<0.400.0>):::worker
-3(#PID<0.408.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-2(Test.Redis.Pool__):::supervisor ---> 19(#PID<0.398.0>):::worker
-40(Test.Redis.Registry__.PIDPartition0):::worker -..- 30(#PID<0.400.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 21(#PID<0.381.0>):::worker
-8(#PID<0.432.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-10(#PID<0.385.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-2(Test.Redis.Pool__):::supervisor ---> 37(#PID<0.442.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 33(#PID<0.414.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 16(#PID<0.444.0>):::worker
-2(Test.Redis.Pool__):::supervisor ---> 8(#PID<0.432.0>):::worker
-18(#PID<0.393.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
-2(Test.Redis.Pool__):::supervisor ---> 32(#PID<0.422.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 12(#PID<0.325.0>):::worker
+16(#PID<0.369.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 34(#PID<0.309.0>):::worker
+7(#PID<0.351.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 4(#PID<0.315.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 34(#PID<0.309.0>):::worker
+6(#PID<0.347.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 30(#PID<0.331.0>):::worker
+3(#PID<0.341.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 19(#PID<0.307.0>):::worker
+40(Test.Redis.Registry__.PIDPartition0):::worker -..- 30(#PID<0.331.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 21(#PID<0.317.0>):::worker
+8(#PID<0.305.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+10(#PID<0.349.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 37(#PID<0.319.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 33(#PID<0.365.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 16(#PID<0.369.0>):::worker
+2(Test.Redis.Pool__):::supervisor ---> 8(#PID<0.305.0>):::worker
+18(#PID<0.355.0>):::worker -..- 40(Test.Redis.Registry__.PIDPartition0):::worker
+2(Test.Redis.Pool__):::supervisor ---> 32(#PID<0.359.0>):::worker
 classDef root fill:#c4b5fd, stroke:#374151, stroke-width:4px, line-height:1.5em;
 classDef supervisor fill:#c4b5fd, stroke:#374151, stroke-width:1px, line-height:1.5em;
 classDef worker fill:#66c2a5, stroke:#374151, stroke-width:1px, line-height:1.5em;
@@ -189,22 +213,185 @@ config
 
 ```
 [
-  {RedisCluster.HashSlots, 0, 5460, :master, "127.0.0.1", 7011},
+  {RedisCluster.HashSlots, 0, 5460, :master, "127.0.0.1", 7006},
   {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", 7000},
   {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", 7003},
-  {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", 7006},
-  {RedisCluster.HashSlots, 5461, 10922, :master, "127.0.0.1", 7010},
+  {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", 7010},
+  {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", 7011},
+  {RedisCluster.HashSlots, 5461, 10922, :master, "127.0.0.1", 7009},
   {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", 7001},
   {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", 7007},
-  {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", 7009},
-  {RedisCluster.HashSlots, 10923, 16383, :master, "127.0.0.1", 7005},
+  {RedisCluster.HashSlots, 10923, 16383, :master, "127.0.0.1", 7004},
   {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", 7002},
-  {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", 7004},
+  {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", 7005},
   {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", 7008}
 ]
 ```
 
 ![](files/tree-diagram.png)
+
+## Smart Cells
+
+Instead of writing the code, `kino_redis_cluster` provides some smart cells for working with Redis. 
+The first cell is for opening a connection. It returns a `RedisCluster.Configuration` struct.
+
+<!-- livebook:{"attrs":"eyJob3N0IjoibG9jYWxob3N0IiwibmFtZSI6IkxvY2FsQ2x1c3RlciIsInBvb2xfc2l6ZSI6IjIiLCJwb3J0IjoiNjM3OSIsInZhcmlhYmxlIjoiY29uZmlnIn0","chunks":null,"kind":"Elixir.Livebook.SmartCell.RedisCluster.Connect","livebook_object":"smart_cell"} -->
+
+```elixir
+name = "LocalCluster"
+
+config = %RedisCluster.Configuration{
+  name: String.to_atom(name),
+  host: "localhost",
+  port: 6379,
+  pool_size: 2,
+  registry: Module.concat([name, Registry]),
+  pool: Module.concat([name, Pool]),
+  cluster: Module.concat([name, Cluster]),
+  shard_discovery: Module.concat([name, ShardDiscovery])
+}
+
+# Start the cluster only if not already started
+case RedisCluster.Cluster.start_link(config) do
+  {:ok, _pid} -> :ok
+  {:error, {:already_started, _pid}} -> :ok
+  {:error, reason} -> raise "Failed to start Redis cluster: #{inspect(reason)}"
+end
+
+config
+
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+
+11:22:09.644 [debug] Discovering shards for LocalCluster
+
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+%RedisCluster.Configuration{
+  host: "localhost",
+  port: 6379,
+  name: :LocalCluster,
+  registry: LocalCluster.Registry,
+  cluster: LocalCluster.Cluster,
+  pool: LocalCluster.Pool,
+  shard_discovery: LocalCluster.ShardDiscovery,
+  pool_size: 2,
+  redis_module: Redix
+}
+```
+
+The other smart cell provided is for running pipelines. 
+These are a series of one or more commands sent to Redis in one batch. 
+The response is a list of command results.
+When writing commands in the pipeline, note that you can use Elixir string interpolation (`SET #{key} #{value}`) to inject your own variables.
+By convention commands are uppercase, though they are case insensitive.
+
+You may also specify the node role to target. 
+Write commands must always go to a master node. 
+Replicas may handle read commands, though they may return stale data if it hasn't synced with the master.
+If you don't care what node, then you can pick "Any".
+
+In cluster mode, Redis must know which node owns the appropriate data. 
+This is the key it operates on. 
+For example with the commanad `SET target-key "some value"`, `target-key` is they key you should use.
+Some commands, like `PING` can be run on any node.
+For these commands set the key to `:any`. 
+This will pick a random node.
+
+```elixir
+my_key = "answer"
+my_value = 42
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+42
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+
+11:22:09.665 [debug] Found cluster info
+Slot Start | Slot End | Host      | Port | Role    | Health
+---------- | -------- | --------- | ---- | ------- | ------
+0          | 5460     | 127.0.0.1 | 6379 | master  | online
+0          | 5460     | 127.0.0.1 | 6386 | replica | online
+0          | 5460     | 127.0.0.1 | 6388 | replica | online
+0          | 5460     | 127.0.0.1 | 6389 | replica | online
+5461       | 10922    | 127.0.0.1 | 6380 | replica | online
+5461       | 10922    | 127.0.0.1 | 6382 | replica | online
+5461       | 10922    | 127.0.0.1 | 6383 | replica | online
+5461       | 10922    | 127.0.0.1 | 6387 | master  | online
+10923      | 16383    | 127.0.0.1 | 6381 | master  | online
+10923      | 16383    | 127.0.0.1 | 6384 | replica | online
+10923      | 16383    | 127.0.0.1 | 6385 | replica | online
+10923      | 16383    | 127.0.0.1 | 6390 | replica | online
+
+```
+
+<!-- livebook:{"attrs":"eyJjb21tYW5kcyI6WyJTRVQgI3tteV9rZXl9ICN7bXlfdmFsdWV9IiwiR0VUICN7bXlfa2V5fSIsIklOQ1IgI3tteV9rZXl9IiwiR0VUICN7bXlfa2V5fSIsIkRFTCAje215X2tleX0iLCJHRVQgI3tteV9rZXl9Il0sImNvbmZpZ192YXJpYWJsZSI6ImNvbmZpZyIsImtleSI6IiN7bXlfa2V5fSIsInJvbGUiOiJtYXN0ZXIiLCJ2YXJpYWJsZSI6InJlc3VsdCJ9","chunks":null,"kind":"Elixir.Livebook.SmartCell.RedisCluster.Pipeline","livebook_object":"smart_cell"} -->
+
+```elixir
+# Redis Cluster Pipeline Commands
+commands = [
+  ["SET", "#{my_key}", "#{my_value}"],
+  ["GET", "#{my_key}"],
+  ["INCR", "#{my_key}"],
+  ["GET", "#{my_key}"],
+  ["DEL", "#{my_key}"],
+  ["GET", "#{my_key}"]
+]
+
+result = RedisCluster.Cluster.pipeline(config, commands, "#{my_key}", [role: :master])
+
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+["OK", "42", 43, "43", 1, nil]
+```
+
+Here are some example commands that are safe to send to any node.
+Notice that you can get different results depending on the node you hit.
+
+<!-- livebook:{"attrs":"eyJjb21tYW5kcyI6WyJQSU5HIiwiREJTSVpFIiwiVElNRSIsIkVDSE8gdGVzdCIsIkNMVVNURVIgS0VZU0xPVCBcInNvbWUga2V5XCIiLCJJTkZPIE1FTU9SWSJdLCJjb25maWdfdmFyaWFibGUiOiJjb25maWciLCJrZXkiOiI6YW55Iiwicm9sZSI6ImFueSIsInZhcmlhYmxlIjoicmVzdWx0In0","chunks":null,"kind":"Elixir.Livebook.SmartCell.RedisCluster.Pipeline","livebook_object":"smart_cell"} -->
+
+```elixir
+# Redis Cluster Pipeline Commands
+commands = [
+  ["PING"],
+  ["DBSIZE"],
+  ["TIME"],
+  ["ECHO", "test"],
+  ["CLUSTER", "KEYSLOT", "some key"],
+  ["INFO", "MEMORY"]
+]
+
+result = RedisCluster.Cluster.pipeline(config, commands, :any, [role: :any])
+
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[
+  "PONG",
+  2,
+  ["1754673738", "464784"],
+  "test",
+  11759,
+  "# Memory\r\nused_memory:2581696\r\nused_memory_human:2.46M\r\nused_memory_rss:8388608\r\nused_memory_rss_human:8.00M\r\nused_memory_peak:2650320\r\nused_memory_peak_human:2.53M\r\nused_memory_peak_perc:97.41%\r\nused_memory_overhead:2484652\r\nused_memory_startup:2056960\r\nused_memory_dataset:97044\r\nused_memory_dataset_perc:18.49%\r\nallocator_allocated:2482688\r\nallocator_active:8388608\r\nallocator_resident:8388608\r\nallocator_muzzy:0\r\ntotal_system_memory:51539607552\r\ntotal_system_memory_human:48.00G\r\nused_memory_lua:31744\r\nused_memory_vm_eval:31744\r\nused_memory_lua_human:31.00K\r\nused_memory_scripts_eval:0\r\nnumber_of_cached_scripts:0\r\nnumber_of_functions:0\r\nnumber_of_libraries:0\r\nused_memory_vm_functions:32768\r\nused_memory_vm_total:64512\r\nused_memory_vm_total_human:63.00K\r\nused_memory_functions:344\r\nused_memory_scripts:344\r\nused_memory_scripts_human:344B\r\nmaxmemory:0\r\nmaxmemory_human:0B\r\nmaxmemory_policy:noeviction\r\nallocator_frag_ratio:1.00\r\nallocator_frag_bytes:0\r\nallocator_rss_ratio:1.00\r\nallocator_rss_bytes:0\r\nrss_overhead_ratio:1.00\r\nrss_overhead_bytes:0\r\nmem_fragmentation_ratio:3.38\r\nmem_fragmentation_bytes:5905920\r\nmem_not_counted_for_evict:128\r\nmem_replication_backlog:67684\r\nmem_total_replication_buffers:67680\r\nmem_replica_full_sync_buffer:0\r\nmem_clients_slaves:0\r\nmem_clients_normal:5504\r\nmem_cluster_links:23584\r\nmem_aof_buffer:128\r\nmem_allocator:libc\r\nmem_overhead_db_hashtable_rehashing:0\r\nactive_defrag_running:0\r\nlazyfree_pending_objects:0\r\nlazyfreed_objects:0\r\n"
+]
+```
 
 ## Hash Slots
 
@@ -223,9 +410,9 @@ config
 
 ```
 [
-  {RedisCluster.HashSlots, 0, 5460, :master, "127.0.0.1", 7011},
-  {RedisCluster.HashSlots, 5461, 10922, :master, "127.0.0.1", 7010},
-  {RedisCluster.HashSlots, 10923, 16383, :master, "127.0.0.1", 7005}
+  {RedisCluster.HashSlots, 0, 5460, :master, "127.0.0.1", 6379},
+  {RedisCluster.HashSlots, 5461, 10922, :master, "127.0.0.1", 6387},
+  {RedisCluster.HashSlots, 10923, 16383, :master, "127.0.0.1", 6381}
 ]
 ```
 
@@ -322,7 +509,11 @@ config
 <!-- livebook:{"output":true} -->
 
 ```
-[{"127.0.0.1", 7005, {:ok, [2]}}, {"127.0.0.1", 7010, {:ok, [5]}}, {"127.0.0.1", 7011, {:ok, [3]}}]
+[
+  {"127.0.0.1", 6379, :master, {:ok, [3]}},
+  {"127.0.0.1", 6381, :master, {:ok, [4]}},
+  {"127.0.0.1", 6387, :master, {:ok, [5]}}
+]
 ```
 
 As long as only the above 10 keys have been written to this cluster, there will be 2 nodes with 2 keys and 2 nodes with 3 keys. That's as even as it gets for such a small set of keys.
@@ -540,20 +731,32 @@ RedisCluster.Cluster.command(config, ~w[CLUSTER SHARDS], "arbitrary", [])
 [
   [
     "slots",
+    [10923, 16383],
+    "nodes",
+    [
+      ["id", "1ec0c4e7b0e1c1e79f8e54fd495f26eeab51c18a", "port", 6381, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "master", "replication-offset", 66045, "health", "online"],
+      ["id", "b4d324d3ae0415a1c7a0ad53b37d352a0e8ed926", "port", 6385, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 66045, "health", "online"],
+      ["id", "a203a6d39540085e2de808d67fdc688fb0604375", "port", 6390, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 66045, "health", "online"],
+      ["id", "e5492ebe6b2a43008dd9ec01f004dd1064e98306", "port", 6384, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 66045, "health", "online"]
+    ]
+  ],
+  [
+    "slots",
     [5461, 10922],
     "nodes",
     [
-      ["id", "9133e50abf9938022ef241d30f993fa1d2d20fcc", "port", 7001, "ip", "127.0.0.1",
-       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 119736, "health",
-       "online"],
-      ["id", "ec153174d253129fcb2e30648b94dbb041695a49", "port", 7009, "ip", "127.0.0.1",
-       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 119736, "health",
-       "online"],
-      ["id", "0874c197de5d54b64eff4b337ea3fc52d1f3bd8b", "port", 7007, "ip", "127.0.0.1",
-       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 119736, "health",
-       "online"],
-      ["id", "6add99a58ad4abe9a735e5dfb97c739031344c98", "port", 7010, "ip", "127.0.0.1",
-       "endpoint", "127.0.0.1", "role", "master", "replication-offset", 119736, "health", "online"]
+      ["id", "2d0bc4aa9e9e4f2fd78ac9a5ed6df17f8c8bff21", "port", 6380, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 64094, "health", "online"],
+      ["id", "1400892e8e5134a307bb37e803118dbb5e8c60f0", "port", 6382, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 64094, "health", "online"],
+      ["id", "54f1a29e06bc1bb87becae4604e56e61c9fcab92", "port", 6383, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 64094, "health", "online"],
+      ["id", "10d604d4b775205badc3b497d226cf998a67862a", "port", 6387, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "master", "replication-offset", 64094, "health", "online"]
     ]
   ],
   [
@@ -561,35 +764,14 @@ RedisCluster.Cluster.command(config, ~w[CLUSTER SHARDS], "arbitrary", [])
     [0, 5460],
     "nodes",
     [
-      ["id", "ece6a1885e580b6e298b0fa31c1ef953fd8af5fa", "port", 7000, "ip", "127.0.0.1",
-       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 119567, "health",
-       "online"],
-      ["id", "ed625459e813f8861ed9ddf8637a063a7a86a18e", "port", 7003, "ip", "127.0.0.1",
-       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 119567, "health",
-       "online"],
-      ["id", "6b5b15cc61778653a2946cf90cabf9269f8d0441", "port", 7006, "ip", "127.0.0.1",
-       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 119567, "health",
-       "online"],
-      ["id", "78f7b077c7bf408e1d513009726d9432111018a2", "port", 7011, "ip", "127.0.0.1",
-       "endpoint", "127.0.0.1", "role", "master", "replication-offset", 119567, "health", "online"]
-    ]
-  ],
-  [
-    "slots",
-    [10923, 16383],
-    "nodes",
-    [
-      ["id", "e25ab6112b5cecc7ff3110e4bebc2eb5283a9e46", "port", 7002, "ip", "127.0.0.1",
-       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 120012, "health",
-       "online"],
-      ["id", "9203ca480260ef729ff41718bbe62c7e6b713f47", "port", 7004, "ip", "127.0.0.1",
-       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 120012, "health",
-       "online"],
-      ["id", "7cdcbc70db636f61bab7493de380f0e76b96c687", "port", 7008, "ip", "127.0.0.1",
-       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 120012, "health",
-       "online"],
-      ["id", "1fb93d74adad34737aff38e64934d0753f567982", "port", 7005, "ip", "127.0.0.1",
-       "endpoint", "127.0.0.1", "role", "master", "replication-offset", 120012, "health", "online"]
+      ["id", "07e3568cd06965675c9341cb8ae75666b797ba88", "port", 6379, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "master", "replication-offset", 63690, "health", "online"],
+      ["id", "982bef4e8adbf4a3d514551e716ddae191e857fb", "port", 6389, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 63690, "health", "online"],
+      ["id", "dac5b647f43ccfd8d0db633188d086178dd65a1e", "port", 6386, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 63690, "health", "online"],
+      ["id", "37bcb25848d4bfa0381bd6b32e875a7230df0925", "port", 6388, "ip", "127.0.0.1",
+       "endpoint", "127.0.0.1", "role", "replica", "replication-offset", 63690, "health", "online"]
     ]
   ]
 ]
@@ -608,18 +790,18 @@ config
 
 ```
 [
-  {RedisCluster.HashSlots, 0, 5460, :master, "127.0.0.1", 7011},
-  {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", 7000},
-  {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", 7003},
-  {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", 7006},
-  {RedisCluster.HashSlots, 5461, 10922, :master, "127.0.0.1", 7010},
-  {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", 7001},
-  {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", 7007},
-  {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", 7009},
-  {RedisCluster.HashSlots, 10923, 16383, :master, "127.0.0.1", 7005},
-  {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", 7002},
-  {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", 7004},
-  {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", 7008}
+  {RedisCluster.HashSlots, 0, 5460, :master, "127.0.0.1", 6379},
+  {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", 6386},
+  {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", 6388},
+  {RedisCluster.HashSlots, 0, 5460, :replica, "127.0.0.1", 6389},
+  {RedisCluster.HashSlots, 5461, 10922, :master, "127.0.0.1", 6387},
+  {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", 6380},
+  {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", 6382},
+  {RedisCluster.HashSlots, 5461, 10922, :replica, "127.0.0.1", 6383},
+  {RedisCluster.HashSlots, 10923, 16383, :master, "127.0.0.1", 6381},
+  {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", 6384},
+  {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", 6385},
+  {RedisCluster.HashSlots, 10923, 16383, :replica, "127.0.0.1", 6390}
 ]
 ```
 
@@ -707,7 +889,7 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-{:module, MyApp.Redis, <<70, 79, 82, 49, 0, 0, 35, ...>>, {:hdel, 2}}
+{:module, MyApp.Redis, <<70, 79, 82, 49, 0, 0, 40, ...>>, {:hdel, 2}}
 ```
 
 The `RedisCluster` module will automatically add common functions such as `get/2`, `set/3`, `command/2`, and `pipeline/2`. 
@@ -738,7 +920,37 @@ end
 <!-- livebook:{"output":true} -->
 
 ```
-#PID<0.474.0>
+
+11:23:02.997 [debug] Discovering shards for Elixir.MyApp.Redis
+
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+#PID<0.438.0>
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+
+11:23:03.004 [debug] Found cluster info
+Slot Start | Slot End | Host      | Port | Role    | Health
+---------- | -------- | --------- | ---- | ------- | ------
+0          | 5460     | 127.0.0.1 | 7000 | replica | online
+0          | 5460     | 127.0.0.1 | 7003 | replica | online
+0          | 5460     | 127.0.0.1 | 7006 | master  | online
+0          | 5460     | 127.0.0.1 | 7010 | replica | online
+0          | 5460     | 127.0.0.1 | 7011 | replica | online
+5461       | 10922    | 127.0.0.1 | 7001 | replica | online
+5461       | 10922    | 127.0.0.1 | 7007 | replica | online
+5461       | 10922    | 127.0.0.1 | 7009 | master  | online
+10923      | 16383    | 127.0.0.1 | 7002 | replica | online
+10923      | 16383    | 127.0.0.1 | 7004 | master  | online
+10923      | 16383    | 127.0.0.1 | 7005 | replica | online
+10923      | 16383    | 127.0.0.1 | 7008 | replica | online
+
 ```
 
 From here you can call it directly. 
@@ -859,7 +1071,7 @@ MyApp.Redis.command(~w[SET fail fail], "fail", role: :replica)
 <!-- livebook:{"output":true} -->
 
 ```
-{:error, %Redix.Error{message: "MOVED 3720 127.0.0.1:7011"}}
+{:error, %Redix.Error{message: "MOVED 3720 127.0.0.1:7006"}}
 ```
 
 Writing to a replica gives an error like `MOVED 3720 127.0.0.1:7000`.
@@ -889,4 +1101,96 @@ MyApp.Redis.get("key", role: :any)
 
 ```
 "value"
+```
+
+## Async Commands
+
+Some of the provided commands can be run in parallel:
+
+* `get_many_async`
+* `set_many_async`
+* `delete_many_async`
+* `broadcast_async`
+
+These commands will send requests in parallel up to the given concurrency limit.
+
+```elixir
+RedisCluster.Cluster.set_many_async(config, %{a: 1, b: 2, c: 3}, role: :master, max_concurrency: 2)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+:ok
+```
+
+```elixir
+RedisCluster.Cluster.get_many_async(config, ~w[a b c], role: :master, max_concurrency: 2)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+["1", "2", "3"]
+```
+
+```elixir
+RedisCluster.Cluster.delete_many_async(config, ~w[a b c], role: :master, max_concurrency: 2)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+3
+```
+
+```elixir
+RedisCluster.Cluster.get_many_async(config, ~w[a b c], role: :master, max_concurrency: 2)
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[nil, nil, nil]
+```
+
+```elixir
+config
+|> RedisCluster.Cluster.broadcast_async([~w[PING], ~w[TIME], ~w[DBSIZE]], role: :master)
+|> Enum.sort()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[
+  {"127.0.0.1", 6379, :master, {:ok, ["PONG", ["1754674111", "280663"], 3]}},
+  {"127.0.0.1", 6381, :master, {:ok, ["PONG", ["1754674111", "275772"], 8]}},
+  {"127.0.0.1", 6387, :master, {:ok, ["PONG", ["1754674111", "278652"], 5]}}
+]
+```
+
+```elixir
+config
+|> RedisCluster.Cluster.broadcast_async([~w[PING], ~w[TIME], ~w[DBSIZE]], role: :any)
+|> Enum.sort()
+```
+
+<!-- livebook:{"output":true} -->
+
+```
+[
+  {"127.0.0.1", 6379, :master, {:ok, ["PONG", ["1754674159", "101254"], 3]}},
+  {"127.0.0.1", 6380, :replica, {:ok, ["PONG", ["1754674159", "101561"], 5]}},
+  {"127.0.0.1", 6381, :master, {:ok, ["PONG", ["1754674159", "101611"], 8]}},
+  {"127.0.0.1", 6382, :replica, {:ok, ["PONG", ["1754674159", "101538"], 5]}},
+  {"127.0.0.1", 6383, :replica, {:ok, ["PONG", ["1754674159", "101487"], 5]}},
+  {"127.0.0.1", 6384, :replica, {:ok, ["PONG", ["1754674159", "101688"], 8]}},
+  {"127.0.0.1", 6385, :replica, {:ok, ["PONG", ["1754674159", "101658"], 8]}},
+  {"127.0.0.1", 6386, :replica, {:ok, ["PONG", ["1754674159", "101444"], 3]}},
+  {"127.0.0.1", 6387, :master, {:ok, ["PONG", ["1754674159", "101504"], 5]}},
+  {"127.0.0.1", 6388, :replica, {:ok, ["PONG", ["1754674159", "101403"], 3]}},
+  {"127.0.0.1", 6389, :replica, {:ok, ["PONG", ["1754674159", "101351"], 3]}},
+  {"127.0.0.1", 6390, :replica, {:ok, ["PONG", ["1754674159", "101601"], 8]}}
+]
 ```
