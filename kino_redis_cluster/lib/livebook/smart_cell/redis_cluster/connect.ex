@@ -73,7 +73,7 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
     name = attrs["name"] || "MyRedisCluster"
     host = attrs["host"] || "localhost"
     port = attrs["port"] || "6379"
-    pool_size = attrs["pool_size"] || "10"
+    pool_size = attrs["pool_size"] || "2"
 
     # Validate required fields
     with {:ok, validated_name} <- validate_name(name),
@@ -85,18 +85,18 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
       var_name = variable |> String.trim() |> String.replace(~r/[^a-zA-Z0-9_]/, "_")
 
     code = """
-      # Redis Cluster Connection: #{validated_name}
       name = #{inspect(validated_name)}
 
       #{var_name} = %RedisCluster.Configuration{
-      name: String.to_atom(name),
+        name: String.to_atom(name),
         host: #{inspect(validated_host)},
         port: #{validated_port},
         pool_size: #{validated_pool_size},
-      registry: Module.concat([name, Registry]),
-      pool: Module.concat([name, Pool]),
-      cluster: Module.concat([name, Cluster]),
-      shard_discovery: Module.concat([name, ShardDiscovery])
+        registry: Module.concat([name, Registry]),
+        pool: Module.concat([name, Pool]),
+        cluster: Module.concat([name, Cluster]),
+        shard_discovery: Module.concat([name, ShardDiscovery])
+      }
     }
 
       # Start the cluster only if not already started
@@ -106,7 +106,6 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
         {:error, reason} -> raise "Failed to start Redis cluster: \#{inspect(reason)}"
       end
 
-      # Configuration is now available as: #{var_name}
       #{var_name}
       """
 
@@ -120,20 +119,16 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
   # Private helper functions
 
   defp validate_name(name) when is_binary(name) do
-    trimmed = String.trim(name)
-    if trimmed != "" do
-      {:ok, trimmed}
-    else
-      {:error, "Cluster name cannot be empty"}
+    case String.trim(name) do
+      "" -> {:error, "Cluster name cannot be empty"}
+      trimmed -> {:ok, trimmed}
     end
   end
 
   defp validate_host(host) when is_binary(host) do
-    trimmed = String.trim(host)
-    if trimmed != "" do
-      {:ok, trimmed}
-    else
-      {:error, "Host cannot be empty"}
+    case String.trim(host) do
+      "" -> {:error, "Host cannot be empty"}
+      trimmed -> {:ok, trimmed}
     end
   end
 
@@ -148,7 +143,7 @@ defmodule Livebook.SmartCell.RedisCluster.Connect do
 
   defp validate_pool_size(pool_size) when is_binary(pool_size) do
     case Integer.parse(pool_size) do
-      {size, ""} when size > 0 and size <= 100 ->
+      {size, ""} when size in 1..100 ->
         {:ok, size}
       _ ->
         {:error, "Pool size must be a number between 1 and 100"}
