@@ -83,7 +83,7 @@ defmodule RedisCluster.MixProject do
       main: "RedisCluster",
       source_url: @source_url,
       homepage_url: @homepage_url,
-      source_ref: @version,
+      source_ref: "v#{@version}",
       formatters: ["html"]
     ]
   end
