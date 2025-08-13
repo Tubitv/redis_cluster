@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 None
 
+## [0.7.0] - 2025-08-12
+
+### Changed
+- Removed global `:default_role` configuration. Read operations now always default to `:master` unless `:role` is explicitly passed to a function. This reverts behavior to pre-0.6.x to avoid developer surprise when reads hit replicas.
+
+### Docs
+- Updated option docs in `RedisCluster.Cluster` to reflect the default role change and remove references to global override.
+
 ## [0.6.1] - 2025-08-09
 
 ### Added
@@ -152,7 +160,8 @@ None
 - Cluster node discovery
 - Health monitoring
 
-[Unreleased]: https://github.com/Tubitv/redis_cluster/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/Tubitv/redis_cluster/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/Tubitv/redis_cluster/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/Tubitv/redis_cluster/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Tubitv/redis_cluster/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/Tubitv/redis_cluster/compare/v0.4.0...v0.5.0
