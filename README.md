@@ -1,4 +1,4 @@
-![RedisCluster](img/redis-cluster-logo.png)
+![RedisCluster](img/redis-cluster-logo-with-text.png)
 
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg?style=flat-square)](https://tubitv.hexdocs.pm/redis_cluster/)
 [![CI](https://github.com/Tubitv/redis_cluster/actions/workflows/ci.yml/badge.svg)](https://github.com/Tubitv/redis_cluster/actions/workflows/ci.yml)
