@@ -457,7 +457,7 @@ defmodule RedisCluster.Cluster do
         end,
         task_opts
       )
-      |> Stream.flat_map(fn
+      |> Enum.flat_map(fn
         {:ok, values} ->
           values
 
@@ -465,7 +465,6 @@ defmodule RedisCluster.Cluster do
           Logger.warning("Failed to get values for keys", reason: reason)
           []
       end)
-      |> Enum.to_list()
 
     # Ensures the values are returned in the same order they were requested.
     for key <- keys do
