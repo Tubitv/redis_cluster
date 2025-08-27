@@ -72,15 +72,15 @@ defmodule RedisCluster.MixProject do
       organization: "tubitv",
       description: "Extends Redix with Redis cluster support",
       files: ~w(.formatter.exs mix.exs lib),
-      licenses: "",
+      licenses: ["MIT"],
       links: %{"GitHub" => @source_url}
     }
   end
 
   defp docs do
     [
-      extras: [],
-      main: "RedisCluster",
+      extras: ["README.md", "CHANGELOG.md"],
+      main: "readme",
       source_url: @source_url,
       homepage_url: @homepage_url,
       source_ref: "v#{@version}",
