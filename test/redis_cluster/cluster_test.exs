@@ -402,6 +402,18 @@ defmodule RedisCluster.ClusterTest do
       assert [nil, nil, nil] = Cluster.get_many(config, Map.keys(pairs))
     end
 
+    test "should handle the single-key operations with noreply", context do
+      config = context[:config]
+
+      key = "noreply-single-key-test-1"
+      value = "value"
+
+      assert :ok = Cluster.set_many(config, %{key => value}, reply: false)
+      assert [^value] = Cluster.get_many(config, [key])
+      assert :ok = Cluster.delete_many(config, [key], reply: false)
+      assert [nil] = Cluster.get_many(config, [key])
+    end
+
     test "should handle the multi-key operations with noreply", context do
       config = context[:config]
 
