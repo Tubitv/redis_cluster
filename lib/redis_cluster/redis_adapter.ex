@@ -5,7 +5,7 @@ defmodule RedisCluster.RedisAdapter do
   """
 
   @callback start_link(opts :: Keyword.t()) :: {:ok, pid()}
-  @callback command(conn :: pid(), cmd :: [binary()]) :: {:ok, binary()}
-  @callback pipeline(conn :: pid(), cmds :: [[binary()]]) :: {:ok, [binary()]}
-  @callback noreply_pipeline(conn :: pid(), cmds :: [[binary()]]) :: :ok
+  @callback command(conn :: pid(), cmd :: [binary()]) :: {:ok, binary()} | {:error, any()}
+  @callback pipeline(conn :: pid(), cmds :: [[binary()]]) :: {:ok, [binary()]} | {:error, any()}
+  @callback noreply_pipeline(conn :: pid(), cmds :: [[binary()]]) :: :ok | {:error, any()}
 end

@@ -99,10 +99,18 @@ defmodule RedisCluster.Cluster do
 
   Since this is a write command, it will always target master nodes.
 
+  You may instruct the server to not wait for replies by setting `:reply` to `false`.
+  This may reduce latency and reduce processing on the server.
+  Be aware that you won't know if the command was successful or not.
+  If you are using `:only_new` or `:only_overwrite`, you also won't know if the key was set.
+  Furthermore, if you follow up with `GET` commands for the same key, the `SET` command
+  may not have been processed yet.
+
   Options:
     * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `false`).
     * `:expire_seconds` - The number of seconds until the key expires.
     * `:expire_milliseconds` - The number of milliseconds until the key expires.
+    * `:reply` - Whether to wait for replies from the server. (default `true`)
     * `:set` - Controls when the key should be set. Possible values are:
       - `:always` - Always set the key (default).
       - `:only_overwrite` - Only set the key if it already exists.
@@ -163,6 +171,41 @@ defmodule RedisCluster.Cluster do
     }
 
     Telemetry.execute_command(["DEL", key], metadata, fn ->
+      command_with_retry(config, role, key, ["DEL", key], opts)
+    end)
+  end
+
+  @doc """
+  Calls the [Redis `DEL` command](https://redis.io/docs/latest/commands/del) without waiting for a reply.
+
+  This function does not wait for the server to confirm the deletion, which may reduce
+  latency and reduce processing on the server. However, you won't know if the command
+  was successful or not. Furthermore, if you follow up with `GET` commands for the same key,
+  the `DEL` command may not have been processed yet.
+
+  Since this is a write command, it will always target master nodes.
+
+  Unlike `delete/3`, this function does not return the number of keys deleted.
+  It will always return `:ok` or an error.
+
+  Options:
+    * `:compute_hash_tag` - Whether to compute the hash tag of the key (default `false`).
+  """
+  @spec delete_noreply(Configuration.t(), key(), Keyword.t()) :: :ok | {:error, any()}
+  def delete_noreply(config, key, opts \\ []) do
+    key = to_string(key)
+    role = :master
+    slot = Key.hash_slot(key, opts)
+
+    metadata = %{
+      config_name: config.name,
+      key: key,
+      role: role,
+      slot: slot
+    }
+
+    Telemetry.execute_command(["DEL", key], metadata, fn ->
+      opts = Keyword.put(opts, :reply, false)
       command_with_retry(config, role, key, ["DEL", key], opts)
     end)
   end
@@ -856,11 +899,14 @@ defmodule RedisCluster.Cluster do
           key_or_keys :: key() | [key()] | :any,
           command(),
           opts :: Keyword.t()
-        ) :: Redix.Protocol.redis_value() | {:error, any()}
+        ) :: Redix.Protocol.redis_value() | :ok | {:error, any()}
   defp command_with_retry(config, role, key_or_keys, command, opts) do
     conn = select_conn(config, key_or_keys, role, opts)
 
     case pipeline_with_retry(config, role, conn, key_or_keys, [command], opts) do
+      :ok ->
+        :ok
+
       {:ok, [error = %Redix.Error{}]} ->
         {:error, error}
 
@@ -892,9 +938,21 @@ defmodule RedisCluster.Cluster do
           key_or_keys :: key() | [key()] | :any,
           commands :: pipeline(),
           opts :: Keyword.t()
-        ) :: {:ok, [Redix.Protocol.redis_value()]} | {:error, any()}
+        ) :: :ok | {:ok, [Redix.Protocol.redis_value()]} | {:error, any()}
   defp pipeline_with_retry(config, role, conn, key_or_keys, commands, opts) do
-    case config.redis_module.pipeline(conn, commands) do
+    reply? = Keyword.get(opts, :reply, true)
+
+    result =
+      if reply? do
+        config.redis_module.pipeline(conn, commands)
+      else
+        config.redis_module.noreply_pipeline(conn, commands)
+      end
+
+    case result do
+      :ok ->
+        :ok
+
       {:ok, result} ->
         {:ok, result}
 

@@ -97,6 +97,18 @@ defmodule RedisCluster.ClusterTest do
       Cluster.delete(config, key)
     end
 
+    test "should get ok when deleting with no reply", context do
+      config = context[:config]
+
+      key = "delete-noreply-key"
+      value = "value"
+
+      assert :ok = Cluster.set(config, key, value)
+      assert value == Cluster.get(config, key)
+      assert :ok = Cluster.delete_noreply(config, key)
+      assert nil == Cluster.get(config, key)
+    end
+
     test "should handle special characters in keys", context do
       config = context[:config]
 
@@ -753,15 +765,35 @@ defmodule RedisCluster.ClusterTest do
     test "should handle multi-key operations in parallel with a single item", context do
       config = context[:config]
 
-      pairs = %{
-        "parallel-multi-key-1" => "value1"
-      }
+      pairs = %{"parallel-multi-key-1" => "value1"}
 
       assert :ok = Cluster.set_many_async(config, pairs)
       assert :ok = Cluster.set_many_async(config, Enum.to_list(pairs))
       assert ~w[value1] = Cluster.get_many_async(config, Map.keys(pairs))
       assert 1 = Cluster.delete_many_async(config, Map.keys(pairs))
       assert [nil] = Cluster.get_many_async(config, Map.keys(pairs))
+    end
+
+    test "should get ok when setting with no reply", context do
+      config = context[:config]
+
+      key = "set-noreply-key"
+      value = "value"
+
+      assert :ok = Cluster.set_many_async(config, %{key => value}, reply: false)
+      assert value == Cluster.get(config, key)
+    end
+
+    test "should get ok when deleting with no reply", context do
+      config = context[:config]
+
+      key = "delete-noreply-key"
+      value = "value"
+
+      assert :ok = Cluster.set(config, key, value)
+      assert value == Cluster.get(config, key)
+      assert :ok = Cluster.delete_many_async(config, [key], reply: false)
+      assert nil == Cluster.get(config, key)
     end
 
     test "should only send one command for duplicated keys in parallel", context do
