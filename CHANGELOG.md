@@ -7,7 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-None
+### Added
+- Reply option support for `Cluster.set/4` function to enable fire-and-forget operations
+- New `Cluster.delete_noreply/3` function for fire-and-forget delete operations without waiting for response
+
+### Changed
+- `Cluster.set/4` now supports `:reply` option (default `true`) for optional response suppression
 
 ## [0.7.0] - 2025-08-12
 
