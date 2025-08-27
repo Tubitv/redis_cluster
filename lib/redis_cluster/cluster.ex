@@ -502,7 +502,13 @@ defmodule RedisCluster.Cluster do
   end
 
   def delete_many(config, [key], opts) do
-    delete(config, key, opts)
+    reply? = Keyword.get(opts, :reply, true)
+
+    if reply? do
+      delete(config, key, opts)
+    else
+      delete_noreply(config, key, opts)
+    end
   end
 
   def delete_many(config, keys, opts) when is_list(keys) do
