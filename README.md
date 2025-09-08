@@ -45,7 +45,7 @@ Conveniently provides basic get/set across many nodes.
 
 ## Demo
 
-To try out `RedisCluster` check out the [demo notebook](notesbooks/redis_cluster-demo.livemd).
+To try out `RedisCluster` check out the [demo notebook](notebooks/redis_cluster-demo.livemd).
 
 [![Run in Livebook](https://livebook.dev/badge/v1/black.svg)](https://livebook.dev/run?url=https%3A%2F%2Fgithub.com%2FTubitv%2Fredis_cluster%2Fblob%2Fmain%2Fnotebooks%2Fredis-cluster-demo.livemd)
 
