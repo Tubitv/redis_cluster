@@ -867,7 +867,7 @@ defmodule RedisCluster.Cluster do
 
         Telemetry.moved_redirect(metadata)
 
-        rediscover(config)
+        rediscover_async(config)
         {:halt, error}
 
       _error, acc ->
@@ -912,20 +912,24 @@ defmodule RedisCluster.Cluster do
           opts :: Keyword.t()
         ) :: Redix.Protocol.redis_value() | :ok | {:error, any()}
   defp command_with_retry(config, role, key_or_keys, command, opts) do
-    conn = select_conn(config, key_or_keys, role, opts)
-
-    case pipeline_with_retry(config, role, conn, key_or_keys, [command], opts) do
-      :ok ->
-        :ok
-
-      {:ok, [error = %Redix.Error{}]} ->
-        {:error, error}
-
-      {:ok, [response]} ->
-        response
-
+    case select_conn(config, key_or_keys, role, opts) do
       {:error, reason} ->
         {:error, reason}
+
+      conn ->
+        case pipeline_with_retry(config, role, conn, key_or_keys, [command], opts) do
+          :ok ->
+            :ok
+
+          {:ok, [error = %Redix.Error{}]} ->
+            {:error, error}
+
+          {:ok, [response]} ->
+            response
+
+          {:error, reason} ->
+            {:error, reason}
+        end
     end
   end
 
@@ -937,9 +941,13 @@ defmodule RedisCluster.Cluster do
           opts :: Keyword.t()
         ) :: {:ok, [Redix.Protocol.redis_value()]} | {:error, any()}
   defp pipeline_with_retry(config, role, key_or_keys, commands, opts) do
-    conn = select_conn(config, key_or_keys, role, opts)
+    case select_conn(config, key_or_keys, role, opts) do
+      {:error, reason} ->
+        {:error, reason}
 
-    pipeline_with_retry(config, role, conn, key_or_keys, commands, opts)
+      conn ->
+        pipeline_with_retry(config, role, conn, key_or_keys, commands, opts)
+    end
   end
 
   @spec pipeline_with_retry(
@@ -1010,10 +1018,15 @@ defmodule RedisCluster.Cluster do
     Telemetry.moved_redirect(metadata)
 
     rediscover(config)
-    conn = get_conn(config, expected_slot, role)
 
-    # Try one more time.
-    config.redis_module.pipeline(conn, commands)
+    case get_conn(config, expected_slot, role) do
+      {:error, reason} ->
+        {:error, reason}
+
+      conn ->
+        # Try one more time.
+        config.redis_module.pipeline(conn, commands)
+    end
   end
 
   defp handle_ask_redirect(config, role, key_or_keys, commands, rest, opts) do
@@ -1036,16 +1049,21 @@ defmodule RedisCluster.Cluster do
 
     Telemetry.ask_redirect(metadata)
 
-    conn = get_conn(config, expected_slot, role)
-    new_commands = [["ASKING"] | commands]
-
-    case pipeline_with_retry(config, role, conn, key_or_keys, new_commands, opts) do
-      {:ok, result} ->
-        # Remove the ASKING response from the result.
-        {:ok, Enum.drop(result, 1)}
-
+    case get_conn(config, expected_slot, role) do
       {:error, reason} ->
         {:error, reason}
+
+      conn ->
+        new_commands = [["ASKING"] | commands]
+
+        case pipeline_with_retry(config, role, conn, key_or_keys, new_commands, opts) do
+          {:ok, result} ->
+            # Remove the ASKING response from the result.
+            {:ok, Enum.drop(result, 1)}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
     end
   end
 
@@ -1086,10 +1104,13 @@ defmodule RedisCluster.Cluster do
     RedisCluster.Pool.get_conn(config, host, port)
   end
 
-  @spec get_conn(Configuration.t(), slot :: RedisCluster.Key.hash(), role()) :: pid()
+  @spec get_conn(Configuration.t(), slot :: RedisCluster.Key.hash(), role()) ::
+          pid() | {:error, any()}
   defp get_conn(config, slot, role) do
-    {host, port} = lookup(config, slot, role)
-    RedisCluster.Pool.get_conn(config, host, port)
+    case lookup(config, slot, role) do
+      {:error, reason} -> {:error, reason}
+      {host, port} -> RedisCluster.Pool.get_conn(config, host, port)
+    end
   end
 
   defp lookup(config, slot, role) do
@@ -1108,8 +1129,14 @@ defmodule RedisCluster.Cluster do
     end
   end
 
-  defp lookup_fallback(_config, slot, role = :master) do
-    raise RedisCluster.Exception, message: "No nodes found for slot #{slot} with role #{role}"
+  defp lookup_fallback(config, slot, role = :master) do
+    Logger.error("No nodes found for slot #{slot} with role #{role}, rediscovering cluster.",
+      config_name: config.name
+    )
+
+    rediscover_async(config)
+
+    {:error, {:no_nodes_available, slot, role}}
   end
 
   defp lookup_fallback(config, slot, role) do
@@ -1154,7 +1181,7 @@ defmodule RedisCluster.Cluster do
         metadata: metadata
       )
 
-      rediscover(config)
+      rediscover_async(config)
     end
 
     errors
@@ -1162,6 +1189,10 @@ defmodule RedisCluster.Cluster do
 
   defp rediscover(config) do
     RedisCluster.ShardDiscovery.rediscover_shards(config)
+  end
+
+  defp rediscover_async(config) do
+    RedisCluster.ShardDiscovery.rediscover_shards_async(config)
   end
 
   # Format for redirect is `ASK|MOVED <target_slot> [<target_host>]:<port>`.

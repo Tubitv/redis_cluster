@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.2] - 2025-01-20
+
+### Added
+- New `rediscover_shards_async/1` function for asynchronous shard discovery
+- Debouncing mechanism for shard discovery to prevent duplicate concurrent discoveries
+
 ### Added
 - Reply option support for `Cluster.set/4` function to enable fire-and-forget operations
 - New `Cluster.delete_noreply/3` function for fire-and-forget delete operations without waiting for response

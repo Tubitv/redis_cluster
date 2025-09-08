@@ -15,16 +15,22 @@ defmodule RedisCluster.ClusterInfo do
   Ideally the host should be a configuration endpoint for ElastiCache (or equivalent).
   The connection is closed after the information is fetched.
   """
-  @spec query(Configuration.t()) :: [NodeInfo.t()] | no_return()
+  @spec query(Configuration.t()) :: [NodeInfo.t()]
   def query(config) do
-    {:ok, conn} = config.redis_module.start_link(host: config.host, port: config.port)
+    options = [host: config.host, port: config.port]
 
-    result = fetch_cluster_info(conn, config)
+    case config.redis_module.start_link(options) do
+      {:ok, conn} ->
+        try do
+          fetch_cluster_info(conn, config)
+        after
+          # Close the connection
+          GenServer.stop(conn)
+        end
 
-    # Close the connection
-    GenServer.stop(conn)
-
-    result
+      _ ->
+        []
+    end
   end
 
   @doc """
