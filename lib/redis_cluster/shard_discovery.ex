@@ -70,13 +70,18 @@ defmodule RedisCluster.ShardDiscovery do
             node_info.health in [:online, :unknown]
           end)
 
-        stop_pool(config)
-        create_pool(config, online_nodes)
-
         slots = Enum.flat_map(online_nodes, & &1.slots)
 
-        HashSlots.delete(config)
-        HashSlots.add_slots(config, slots)
+        if slots == [] do
+          Logger.error("No slots found in cluster for #{config.name}")
+          rediscover_shards(config)
+        else
+          stop_pool(config)
+          create_pool(config, online_nodes)
+
+          HashSlots.delete(config)
+          HashSlots.add_slots(config, slots)
+        end
 
         # Return useful information for telemetry
         %{

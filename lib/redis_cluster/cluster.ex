@@ -1108,7 +1108,8 @@ defmodule RedisCluster.Cluster do
     end
   end
 
-  defp lookup_fallback(_config, slot, role = :master) do
+  defp lookup_fallback(config, slot, role = :master) do
+    rediscover(config)
     raise RedisCluster.Exception, message: "No nodes found for slot #{slot} with role #{role}"
   end
 
