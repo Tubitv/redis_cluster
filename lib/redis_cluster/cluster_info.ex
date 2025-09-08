@@ -21,12 +21,12 @@ defmodule RedisCluster.ClusterInfo do
 
     case config.redis_module.start_link(options) do
       {:ok, conn} ->
-        result = fetch_cluster_info(conn, config)
-
-        # Close the connection
-        GenServer.stop(conn)
-
-        result
+        try do
+          fetch_cluster_info(conn, config)
+        after
+          # Close the connection
+          GenServer.stop(conn)
+        end
 
       _ ->
         []
