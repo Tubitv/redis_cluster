@@ -143,7 +143,7 @@ defmodule RedisCluster.ShardDiscovery do
 
         if slots == [] do
           Logger.error("No slots found in cluster for #{config.name}")
-          rediscover_shards(config)
+          schedule_retry_discovery(config)
         else
           stop_pool(config)
           create_pool(config, online_nodes)
@@ -160,6 +160,12 @@ defmodule RedisCluster.ShardDiscovery do
         }
       end)
     end)
+  end
+
+  defp schedule_retry_discovery(config) do
+    # Schedule a delayed async retry to avoid a race condition on the state check.
+    # Also, gives the cluster time to stabilize.
+    :timer.apply_after(:timer.seconds(1), __MODULE__, :rediscover_shards_async, [config])
   end
 
   defp stop_pool(config) do
