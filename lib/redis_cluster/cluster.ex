@@ -867,7 +867,7 @@ defmodule RedisCluster.Cluster do
 
         Telemetry.moved_redirect(metadata)
 
-        rediscover(config)
+        rediscover_async(config)
         {:halt, error}
 
       _error, acc ->
@@ -1109,7 +1109,7 @@ defmodule RedisCluster.Cluster do
   end
 
   defp lookup_fallback(config, slot, role = :master) do
-    rediscover(config)
+    rediscover_async(config)
     raise RedisCluster.Exception, message: "No nodes found for slot #{slot} with role #{role}"
   end
 
@@ -1155,7 +1155,7 @@ defmodule RedisCluster.Cluster do
         metadata: metadata
       )
 
-      rediscover(config)
+      rediscover_async(config)
     end
 
     errors
@@ -1163,6 +1163,10 @@ defmodule RedisCluster.Cluster do
 
   defp rediscover(config) do
     RedisCluster.ShardDiscovery.rediscover_shards(config)
+  end
+
+  defp rediscover_async(config) do
+    RedisCluster.ShardDiscovery.rediscover_shards_async(config)
   end
 
   # Format for redirect is `ASK|MOVED <target_slot> [<target_host>]:<port>`.

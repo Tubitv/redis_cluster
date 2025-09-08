@@ -24,25 +24,65 @@ defmodule RedisCluster.ShardDiscovery do
   @impl GenServer
   def init(config) do
     _ = HashSlots.create_table(config)
-    {:ok, config, {:continue, :discover_shards}}
+    state = %{config: config, discovery_state: :idle}
+    {:ok, state, {:continue, :discover_shards}}
   end
 
   @impl GenServer
-  def handle_continue(:discover_shards, config) do
-    discover_shards(config)
-    {:noreply, config}
+  def handle_continue(:discover_shards, state) do
+    discover_shards(state.config)
+    {:noreply, state}
   end
 
   @impl GenServer
-  def handle_call(:discover_shards, _from, config) do
-    discover_shards(config)
-    {:reply, :ok, config}
+  def handle_call(:discover_shards, from, state) do
+    case state.discovery_state do
+      :idle ->
+        new_state = %{state | discovery_state: {:discovering, [from]}}
+        perform_discovery_async(new_state)
+        {:noreply, new_state}
+
+      {:discovering, waiting_callers} ->
+        # Add caller to waiting list, they'll get a reply when discovery completes
+        new_state = %{state | discovery_state: {:discovering, [from | waiting_callers]}}
+        {:noreply, new_state}
+    end
+  end
+
+  @impl GenServer
+  def handle_cast(:discover_shards_async, state) do
+    case state.discovery_state do
+      :idle ->
+        new_state = %{state | discovery_state: {:discovering, []}}
+        perform_discovery_async(new_state)
+        {:noreply, new_state}
+
+      _ ->
+        # Discovery already in progress, ignore duplicate request
+        {:noreply, state}
+    end
+  end
+
+  @impl GenServer
+  def handle_info(:discovery_complete, state) do
+    case state.discovery_state do
+      {:discovering, waiting_callers} ->
+        Enum.each(waiting_callers, &GenServer.reply(&1, :ok))
+
+        new_state = %{state | discovery_state: :idle}
+        {:noreply, new_state}
+
+      _ ->
+        {:noreply, state}
+    end
   end
 
   @doc """
   Triggers a rediscovery of the shards in the cluster. You shouldn't need to call this
   function directly in most cases, as the cluster will automatically handle shard
   discovery when needed.
+
+  This function waits for the discovery to complete before returning.
   """
   @spec rediscover_shards(Configuration.t()) :: :ok
   def rediscover_shards(config) do
@@ -50,7 +90,36 @@ defmodule RedisCluster.ShardDiscovery do
     GenServer.call(config.shard_discovery, :discover_shards)
   end
 
+  @doc """
+  Triggers a rediscovery of the shards in the cluster asynchronously. This function
+  returns immediately without waiting for the discovery to complete.
+
+  If a discovery is already in progress, this call is ignored (no duplicate work).
+  """
+  @spec rediscover_shards_async(Configuration.t()) :: :ok
+  def rediscover_shards_async(config) do
+    Telemetry.cluster_rediscovery(%{config_name: config.name})
+    GenServer.cast(config.shard_discovery, :discover_shards_async)
+  end
+
   ## Helpers
+
+  defp perform_discovery_async(state) do
+    parent_pid = self()
+
+    Task.start(fn ->
+      try do
+        discover_shards(state.config)
+      rescue
+        error -> {:error, error}
+      catch
+        :exit, reason -> {:error, {:exit, reason}}
+        :throw, value -> {:error, {:throw, value}}
+      end
+
+      send(parent_pid, :discovery_complete)
+    end)
+  end
 
   defp discover_shards(config) do
     Logger.debug("Discovering shards for #{config.name}")
