@@ -107,18 +107,21 @@ defmodule RedisCluster.ShardDiscovery do
   defp perform_discovery_async(state) do
     parent_pid = self()
 
-    Task.start(fn ->
-      try do
-        discover_shards(state.config)
-      rescue
-        error -> {:error, error}
-      catch
-        :exit, reason -> {:error, {:exit, reason}}
-        :throw, value -> {:error, {:throw, value}}
-      end
+    _ =
+      Task.start(fn ->
+        try do
+          discover_shards(state.config)
+        rescue
+          error -> {:error, error}
+        catch
+          :exit, reason -> {:error, {:exit, reason}}
+          :throw, value -> {:error, {:throw, value}}
+        end
 
-      send(parent_pid, :discovery_complete)
-    end)
+        send(parent_pid, :discovery_complete)
+      end)
+
+    :ok
   end
 
   defp discover_shards(config) do
@@ -165,7 +168,8 @@ defmodule RedisCluster.ShardDiscovery do
   defp schedule_retry_discovery(config) do
     # Schedule a delayed async retry to avoid a race condition on the state check.
     # Also, gives the cluster time to stabilize.
-    :timer.apply_after(:timer.seconds(1), __MODULE__, :rediscover_shards_async, [config])
+    _ = :timer.apply_after(:timer.seconds(1), __MODULE__, :rediscover_shards_async, [config])
+    :ok
   end
 
   defp stop_pool(config) do
