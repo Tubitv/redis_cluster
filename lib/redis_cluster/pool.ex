@@ -48,7 +48,11 @@ defmodule RedisCluster.Pool do
     for index <- 1..config.pool_size do
       name = registry_name(config.registry, host, port, index - 1)
 
-      conn_opts = [host: host, port: port, name: name]
+      conn_opts =
+        %Configuration{config | host: host, port: port}
+        |> build_conn_opts()
+        |> Keyword.put(:name, name)
+
       args = {role, config, conn_opts}
 
       spec = Supervisor.child_spec({RedisCluster.Connection, args}, id: {Redix, name})
@@ -90,5 +94,15 @@ defmodule RedisCluster.Pool do
 
   defp registry_name(registry, host, port, index) do
     {:via, Registry, {registry, {host, port, index}}}
+  end
+
+  defp build_conn_opts(config) do
+    base_opts = [host: config.host, port: config.port]
+
+    if config.ssl do
+      Keyword.put(base_opts, :socket_opts, ssl: config.ssl_opts)
+    else
+      base_opts
+    end
   end
 end
