@@ -291,6 +291,63 @@ defmodule MonitorTest do
     end
   end
 
+  describe "SSL support" do
+    test "stores SSL options in state when provided" do
+      {:ok, monitor_pid} =
+        Monitor.start_link(
+          host: "127.0.0.1",
+          port: 9998,
+          max_commands: 10,
+          ssl: true,
+          ssl_opts: [verify: :verify_peer, cacertfile: "/path/to/ca.crt"]
+        )
+
+      state = :sys.get_state(monitor_pid)
+
+      assert state.ssl == true
+      assert state.ssl_opts == [verify: :verify_peer, cacertfile: "/path/to/ca.crt"]
+      assert state.host == "127.0.0.1"
+      assert state.port == 9998
+
+      Monitor.stop(monitor_pid)
+    end
+
+    test "defaults SSL to false when not specified" do
+      {:ok, monitor_pid} =
+        Monitor.start_link(
+          host: "127.0.0.1",
+          port: 9996,
+          max_commands: 10
+        )
+
+      state = :sys.get_state(monitor_pid)
+
+      assert state.ssl == false
+      assert state.ssl_opts == []
+
+      Monitor.stop(monitor_pid)
+    end
+
+    test "monitor_node passes SSL options correctly" do
+      {:ok, monitor_pid} =
+        Monitor.monitor_node(
+          "127.0.0.1",
+          9997,
+          max_commands: 5,
+          ssl: true,
+          ssl_opts: [verify: :verify_none]
+        )
+
+      state = :sys.get_state(monitor_pid)
+
+      assert state.ssl == true
+      assert state.ssl_opts == [verify: :verify_none]
+      assert state.max_commands == 5
+
+      Monitor.stop(monitor_pid)
+    end
+  end
+
   defp wait_for_cluster_to_be_ready(config, attempts \\ 10)
 
   defp wait_for_cluster_to_be_ready(_config, 0) do
