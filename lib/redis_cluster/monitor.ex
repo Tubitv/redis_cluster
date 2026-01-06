@@ -426,7 +426,7 @@ defmodule RedisCluster.Monitor do
               {:ok, %{state | conn: socket}}
 
             {:error, reason} ->
-              close_socket(socket, state.ssl)
+              _ = close_socket(socket, state.ssl)
               {:error, reason}
           end
 
@@ -487,18 +487,19 @@ defmodule RedisCluster.Monitor do
   end
 
   defp quit(state) do
-    if state.conn do
-      quit_command = "*1\r\n$4\r\nQUIT\r\n"
+    _ =
+      if state.conn do
+        quit_command = "*1\r\n$4\r\nQUIT\r\n"
 
-      _ =
-        if state.ssl do
-          :ssl.send(state.conn, quit_command)
-        else
-          :gen_tcp.send(state.conn, quit_command)
-        end
+        _ =
+          if state.ssl do
+            :ssl.send(state.conn, quit_command)
+          else
+            :gen_tcp.send(state.conn, quit_command)
+          end
 
-      close_socket(state.conn, state.ssl)
-    end
+        close_socket(state.conn, state.ssl)
+      end
 
     %{state | conn: nil}
   end
