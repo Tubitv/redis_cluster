@@ -41,7 +41,18 @@ defmodule RedisCluster.Monitor do
   alias RedisCluster.Configuration
   alias RedisCluster.Monitor.Message
 
-  defstruct [:host, :port, :conn, :filter, :command_count, :total_count, :commands, :max_commands]
+  defstruct [
+    :host,
+    :port,
+    :conn,
+    :filter,
+    :command_count,
+    :total_count,
+    :commands,
+    :max_commands,
+    ssl: false,
+    ssl_opts: []
+  ]
 
   @typedoc """
   A function that filters commands based on the message struct.
@@ -68,6 +79,8 @@ defmodule RedisCluster.Monitor do
     * `:port` - Redis port (required)
     * `:max_commands` - Maximum number of commands to keep in memory (d if nil, default 100)
     * `:filter` - A function that filters commands based on the message struct (optional)
+    * `:ssl` - Enable SSL/TLS connections (default: false)
+    * `:ssl_opts` - SSL options passed to :ssl.connect (default: [])
   """
   @spec start_link(Keyword.t()) :: GenServer.on_start()
   def start_link(opts) do
@@ -145,6 +158,8 @@ defmodule RedisCluster.Monitor do
     * `:host` - Redis host (required)
     * `:port` - Redis port (required)
     * `:max_commands` - Maximum number of commands to keep in memory (optional, unlimited if nil, default 100)
+    * `:ssl` - Enable SSL/TLS connections (default: false)
+    * `:ssl_opts` - SSL options passed to :ssl.connect (default: [])
   """
   @spec monitor_node(String.t(), non_neg_integer(), Keyword.t()) ::
           {:ok, pid()} | {:error, term()}
@@ -211,6 +226,8 @@ defmodule RedisCluster.Monitor do
     port = Keyword.fetch!(opts, :port)
     max_commands = Keyword.get(opts, :max_commands)
     filter = Keyword.get(opts, :filter)
+    ssl = Keyword.get(opts, :ssl, false)
+    ssl_opts = Keyword.get(opts, :ssl_opts, [])
 
     if not is_integer(max_commands) or max_commands <= 0 do
       raise ArgumentError, "max_commands must be a positive integer"
@@ -229,7 +246,9 @@ defmodule RedisCluster.Monitor do
       command_count: 0,
       total_count: 0,
       commands: :queue.new(),
-      max_commands: max_commands
+      max_commands: max_commands,
+      ssl: ssl,
+      ssl_opts: ssl_opts
     }
 
     {:ok, state, {:continue, :connect}}
@@ -267,78 +286,83 @@ defmodule RedisCluster.Monitor do
   end
 
   @impl GenServer
-  def handle_info({:tcp, conn, data}, %{conn: conn} = state) do
-    # Split data by newlines and process each line separately
-    # Multiple monitor messages can arrive in a single TCP packet
-    lines =
-      data
-      |> String.split("\n")
-      |> Enum.map(&String.trim/1)
+  def handle_info({tag, conn, data}, state) when tag in [:tcp, :ssl] do
+    if conn == state.conn do
+      lines =
+        data
+        |> String.split("\n")
+        |> Enum.map(&String.trim/1)
 
-    # Parse each line and collect valid messages
-    new_messages =
-      for l <- lines,
-          l != "",
-          msg = Message.parse(l, state.host, state.port),
-          msg != nil do
-        msg
+      new_messages =
+        for l <- lines,
+            l != "",
+            msg = Message.parse(l, state.host, state.port),
+            msg != nil do
+          msg
+        end
+
+      case add_messages(
+             state.commands,
+             state.filter,
+             state.command_count,
+             state.total_count,
+             state.max_commands,
+             new_messages
+           ) do
+        {:ok, new_queue, new_command_count, new_total_count} ->
+          {:noreply,
+           %{
+             state
+             | commands: new_queue,
+               command_count: new_command_count,
+               total_count: new_total_count
+           }}
+
+        {:quit, new_queue, new_command_count, new_total_count} ->
+          new_state =
+            %{
+              state
+              | commands: new_queue,
+                command_count: new_command_count,
+                total_count: new_total_count
+            }
+
+          {:noreply, quit(new_state)}
       end
-
-    case add_messages(
-           state.commands,
-           state.filter,
-           state.command_count,
-           state.total_count,
-           state.max_commands,
-           new_messages
-         ) do
-      {:ok, new_queue, new_command_count, new_total_count} ->
-        # Update the state, then continue.
-        {:noreply,
-         %{
-           state
-           | commands: new_queue,
-             command_count: new_command_count,
-             total_count: new_total_count
-         }}
-
-      {:quit, new_queue, new_command_count, new_total_count} ->
-        # Update the state, then quit the connection.
-        new_state =
-          %{
-            state
-            | commands: new_queue,
-              command_count: new_command_count,
-              total_count: new_total_count
-          }
-
-        {:noreply, quit(new_state)}
+    else
+      {:noreply, state}
     end
   end
 
-  def handle_info({:tcp_closed, conn}, %{conn: conn} = state) do
-    Logger.warning("Redis monitoring connection closed",
-      host: state.host,
-      port: state.port
-    )
+  def handle_info({tag, conn}, state) when tag in [:tcp_closed, :ssl_closed] do
+    if conn == state.conn do
+      Logger.warning("Redis monitoring connection closed",
+        host: state.host,
+        port: state.port
+      )
 
-    # Clear connection and attempt to reconnect
-    new_state = %{state | conn: nil}
-    Process.send_after(self(), :retry_connect, 1000)
-    {:noreply, new_state}
+      new_state = %{state | conn: nil}
+      Process.send_after(self(), :retry_connect, 1000)
+      {:noreply, new_state}
+    else
+      {:noreply, state}
+    end
   end
 
-  def handle_info({:tcp_error, conn, reason}, %{conn: conn} = state) do
-    Logger.warning("Redis monitoring connection error",
-      host: state.host,
-      port: state.port,
-      reason: reason
-    )
+  def handle_info({tag, conn, reason}, state) when tag in [:tcp_error, :ssl_error] do
+    if conn == state.conn do
+      Logger.warning("Redis monitoring connection error",
+        host: state.host,
+        port: state.port,
+        reason: reason
+      )
 
-    # Clear connection and attempt to reconnect
-    new_state = %{state | conn: nil}
-    Process.send_after(self(), :retry_connect, 1000)
-    {:noreply, new_state}
+      new_state = %{state | conn: nil}
+      Process.send_after(self(), :retry_connect, 1000)
+      {:noreply, new_state}
+    else
+      {:noreply, state}
+    end
   end
 
   def handle_info(:retry_connect, state) do
@@ -375,12 +399,36 @@ defmodule RedisCluster.Monitor do
     if state.conn do
       {:error, :already_connected}
     else
-      # Use raw TCP connection for MONITOR
-      case :gen_tcp.connect(String.to_charlist(state.host), state.port, [:binary, active: true]) do
+      host_charlist = String.to_charlist(state.host)
+
+      result =
+        if state.ssl do
+          base_opts = [:binary, active: true]
+          ssl_opts = base_opts ++ state.ssl_opts
+          :ssl.connect(host_charlist, state.port, ssl_opts)
+        else
+          :gen_tcp.connect(host_charlist, state.port, [:binary, active: true])
+        end
+
+      case result do
         {:ok, socket} ->
-          # Send MONITOR command using Redis protocol
-          _ = :gen_tcp.send(socket, "*1\r\n$7\r\nMONITOR\r\n")
-          {:ok, %{state | conn: socket}}
+          monitor_command = "*1\r\n$7\r\nMONITOR\r\n"
+
+          send_result =
+            if state.ssl do
+              :ssl.send(socket, monitor_command)
+            else
+              :gen_tcp.send(socket, monitor_command)
+            end
+
+          case send_result do
+            :ok ->
+              {:ok, %{state | conn: socket}}
+
+            {:error, reason} ->
+              _ = close_socket(socket, state.ssl)
+              {:error, reason}
+          end
 
         {:error, reason} ->
           {:error, reason}
@@ -439,11 +487,28 @@ defmodule RedisCluster.Monitor do
   end
 
   defp quit(state) do
-    if state.conn do
-      _ = :gen_tcp.send(state.conn, "*1\r\n$4\r\nQUIT\r\n")
-      :gen_tcp.close(state.conn)
-    end
+    _ =
+      if state.conn do
+        quit_command = "*1\r\n$4\r\nQUIT\r\n"
+
+        _ =
+          if state.ssl do
+            :ssl.send(state.conn, quit_command)
+          else
+            :gen_tcp.send(state.conn, quit_command)
+          end
+
+        close_socket(state.conn, state.ssl)
+      end
 
     %{state | conn: nil}
+  end
+
+  defp close_socket(socket, ssl) do
+    if ssl do
+      :ssl.close(socket)
+    else
+      :gen_tcp.close(socket)
+    end
   end
 end

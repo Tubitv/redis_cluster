@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-01-06
+
+### Added
+- SSL/TLS support for Redis connections across all modules
+- `ssl` and `ssl_opts` configuration options in `Configuration` module
+- SSL connection support in `Pool` module with comprehensive tests
+- SSL connection support in `ClusterInfo` module with comprehensive tests
+- SSL connection support in `Monitor` module with comprehensive tests
+- Documentation for SSL configuration options and examples
+
 ## [0.7.2] - 2025-01-20
 
 ### Added
@@ -171,7 +181,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cluster node discovery
 - Health monitoring
 
-[Unreleased]: https://github.com/Tubitv/redis_cluster/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/Tubitv/redis_cluster/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/Tubitv/redis_cluster/compare/v0.7.2...v0.8.0
+[0.7.2]: https://github.com/Tubitv/redis_cluster/compare/v0.7.0...v0.7.2
 [0.7.0]: https://github.com/Tubitv/redis_cluster/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/Tubitv/redis_cluster/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/Tubitv/redis_cluster/compare/v0.5.0...v0.6.0

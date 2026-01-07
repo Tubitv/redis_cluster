@@ -101,3 +101,29 @@ defmodule MyApp.Redis do
     pool_size: 3
 end
 ```
+
+### SSL/TLS Configuration
+
+To enable SSL/TLS connections to your Redis cluster, add the `ssl` and `ssl_opts` options to your configuration:
+
+```elixir
+config :my_app, MyApp.Redis,
+  host: redis_host,
+  port: redis_port,
+  pool_size: 16,
+  ssl: true,
+  ssl_opts: [
+    verify: :verify_peer,
+    cacertfile: "/path/to/ca.crt"
+  ]
+```
+
+Common SSL options include:
+- `verify: :verify_peer` - Enable certificate verification (recommended for production)
+- `verify: :verify_none` - Disable certificate verification (not recommended for production)
+- `cacertfile: path` - Path to CA certificate file
+- `certfile: path` - Path to client certificate file (for mutual TLS)
+- `keyfile: path` - Path to client private key file (for mutual TLS)
+- `server_name_indication: 'hostname'` - SNI hostname for certificate verification
+
+These options are passed directly to Erlang's `:ssl.connect/3`. See the [Erlang SSL documentation](https://www.erlang.org/doc/man/ssl.html) for all available options.

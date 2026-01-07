@@ -17,7 +17,7 @@ defmodule RedisCluster.ClusterInfo do
   """
   @spec query(Configuration.t()) :: [NodeInfo.t()]
   def query(config) do
-    options = [host: config.host, port: config.port]
+    options = build_conn_opts(config)
 
     case config.redis_module.start_link(options) do
       {:ok, conn} ->
@@ -44,7 +44,8 @@ defmodule RedisCluster.ClusterInfo do
   The connection is closed when the given function returns false.
   """
   def query_while(config, fun) when is_function(fun, 2) do
-    {:ok, conn} = config.redis_module.start_link(host: config.host, port: config.port)
+    options = build_conn_opts(config)
+    {:ok, conn} = config.redis_module.start_link(options)
     query_while(conn, config, 1, fun)
   end
 
@@ -109,11 +110,22 @@ defmodule RedisCluster.ClusterInfo do
   end
 
   defp fetch_remaining_replicas({:partial, master, _replicas}, config) do
-    conn = config.redis_module.start_link(host: master.host, port: master.port)
+    options = build_conn_opts(%{config | host: master.host, port: master.port})
+    conn = config.redis_module.start_link(options)
     result = standalone_info(conn, config)
 
     GenServer.stop(conn)
 
     result
+  end
+
+  defp build_conn_opts(config) do
+    base_opts = [host: config.host, port: config.port]
+
+    if config.ssl do
+      Keyword.put(base_opts, :socket_opts, ssl: config.ssl_opts)
+    else
+      base_opts
+    end
   end
 end
