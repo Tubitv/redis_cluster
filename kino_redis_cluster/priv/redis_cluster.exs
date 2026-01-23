@@ -1,0 +1,1 @@
+../../scripts/redis_cluster.exs
