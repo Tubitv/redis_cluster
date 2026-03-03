@@ -36,7 +36,7 @@ defmodule KinoRedisCluster.MixProject do
   def package do
     %{
       description: "Livebook extension for RedisCluster",
-      files: ~w(.formatter.exs mix.exs lib),
+      files: ~w(.formatter.exs mix.exs lib priv),
       licenses: ["MIT"],
       links: %{"GitHub" => @source_url}
     }
