@@ -4,7 +4,7 @@
 
 ```elixir
 Mix.install([
-  {:kino_redis_cluster, github: "tubitv/redis_cluster", subdir: "kino_redis_cluster"}
+  {:kino_redis_cluster, "~> 0.1.0"}
 ])
 ```
 
@@ -45,7 +45,6 @@ Starting Redis on port 7010
 Starting Redis on port 7011
 Waiting for Redis instances to start...
 Creating Redis Cluster with nodes: ["127.0.0.1:7000", "127.0.0.1:7001", "127.0.0.1:7002", "127.0.0.1:7003", "127.0.0.1:7004", "127.0.0.1:7005", "127.0.0.1:7006", "127.0.0.1:7007", "127.0.0.1:7008", "127.0.0.1:7009", "127.0.0.1:7010", "127.0.0.1:7011"]
-
 ```
 
 <!-- livebook:{"output":true} -->
