@@ -1,7 +1,7 @@
 defmodule RedisCluster.MixProject do
   use Mix.Project
 
-  @homepage_url "https://tubitv.hexdocs.pm/redis_cluster"
+  @homepage_url "https://hexdocs.pm/redis_cluster"
   @source_url "https://github.com/Tubitv/redis_cluster"
   @version "0.8.0"
 
@@ -69,7 +69,6 @@ defmodule RedisCluster.MixProject do
 
   def package do
     %{
-      organization: "tubitv",
       description: "Extends Redix with Redis cluster support",
       files: ~w(.formatter.exs mix.exs lib),
       licenses: ["MIT"],
