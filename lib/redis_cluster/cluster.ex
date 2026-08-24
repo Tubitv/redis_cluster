@@ -291,9 +291,9 @@ defmodule RedisCluster.Cluster do
     errors =
       if reply? do
         for {conn, cmds} <- commands_by_conn,
-            response = redis.pipeline(conn, cmds),
-            not match?({:ok, _}, response) do
-          response
+            error = pipeline_response_error(redis.pipeline(conn, cmds)),
+            not is_nil(error) do
+          error
         end
       else
         for {conn, cmds} <- commands_by_conn,
@@ -348,7 +348,8 @@ defmodule RedisCluster.Cluster do
       if reply? do
         commands_by_conn
         |> run_async_commands_by_conn(config, opts)
-        |> Enum.reject(&match?({:ok, _}, &1))
+        |> Enum.map(&pipeline_response_error/1)
+        |> Enum.reject(&is_nil/1)
       else
         commands_by_conn
         |> run_async_commands_by_conn(config, opts)
@@ -968,21 +969,27 @@ defmodule RedisCluster.Cluster do
         config.redis_module.noreply_pipeline(conn, commands)
       end
 
+    # Redix returns Redis-level errors (like MOVED/ASK) as `Redix.Error` structs
+    # embedded in a successful `{:ok, results}` pipeline reply, not as a top-level
+    # `{:error, _}` tuple. Only connection-level failures produce `{:error, _}`.
     case result do
       :ok ->
         :ok
 
-      {:ok, result} ->
-        {:ok, result}
+      {:ok, results} ->
+        case find_redirect(results) do
+          {:moved, rest} ->
+            # The key wasn't on the expected node.
+            # Try rediscovering the cluster.
+            handle_moved_redirect(config, role, key_or_keys, commands, rest, opts)
 
-      # The key wasn't on the expected node.
-      # Try rediscovering the cluster.
-      {:error, %Redix.Error{message: "MOVED " <> rest}} ->
-        handle_moved_redirect(config, role, key_or_keys, commands, rest, opts)
+          {:ask, rest} ->
+            # A temporary redirect.
+            handle_ask_redirect(config, role, key_or_keys, commands, rest, opts)
 
-      # A temporary redirect.
-      {:error, %Redix.Error{message: "ASK " <> rest}} ->
-        handle_ask_redirect(config, role, key_or_keys, commands, rest, opts)
+          :none ->
+            {:ok, results}
+        end
 
       error = {:error, reason} ->
         Logger.warning("Failed to query Redis",
@@ -995,6 +1002,14 @@ defmodule RedisCluster.Cluster do
 
         error
     end
+  end
+
+  defp find_redirect(results) do
+    Enum.find_value(results, :none, fn
+      %Redix.Error{message: "MOVED " <> rest} -> {:moved, rest}
+      %Redix.Error{message: "ASK " <> rest} -> {:ask, rest}
+      _other -> nil
+    end)
   end
 
   defp handle_moved_redirect(config, role, key_or_keys, commands, rest, opts) do
@@ -1161,9 +1176,25 @@ defmodule RedisCluster.Cluster do
     Enum.at(list, index)
   end
 
+  # Normalizes a `redis_module.pipeline/2` result into `nil` (no error) or an
+  # `{:error, reason}` tuple. Redix embeds Redis-level errors (like MOVED/ASK)
+  # as `Redix.Error` structs inside a successful `{:ok, results}` reply, so a
+  # plain `match?({:ok, _}, response)` check would miss them.
+  defp pipeline_response_error(:ok), do: nil
+
+  defp pipeline_response_error({:ok, results}) do
+    case Enum.find(results, &match?(%Redix.Error{}, &1)) do
+      nil -> nil
+      error -> {:error, error}
+    end
+  end
+
+  defp pipeline_response_error({:error, _reason} = error), do: error
+  defp pipeline_response_error(other), do: {:error, other}
+
   defp maybe_rediscover(config, errors) do
     info =
-      for %Redix.Error{message: "MOVED" <> rest} <- errors do
+      for {:error, %Redix.Error{message: "MOVED" <> rest}} <- errors do
         parse_redirect(rest, config.host)
       end
 

@@ -32,6 +32,7 @@ defmodule RedisCluster.Telemetry do
 
   ### Connection Events
   - `[:redis_cluster, :connection, :acquired]` - When a connection is acquired from pool
+  - `[:redis_cluster, :connection, :readonly_resent]` - When `READONLY` is re-sent to a replica connection after Redix reconnects it
 
   ### Redirect Events
   - `[:redis_cluster, :redirect, :moved]` - When a MOVED redirect occurs
@@ -219,6 +220,15 @@ defmodule RedisCluster.Telemetry do
       stats,
       Map.put(metadata, :timestamp, System.system_time())
     )
+  end
+
+  @doc """
+  Emits a telemetry event when `READONLY` is re-sent to a replica connection
+  after Redix reconnects it.
+  """
+  @spec readonly_resent(metadata :: map()) :: :ok
+  def readonly_resent(metadata \\ %{}) do
+    execute([:redis_cluster, :connection, :readonly_resent], %{count: 1}, metadata)
   end
 
   @doc """

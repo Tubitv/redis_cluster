@@ -31,8 +31,9 @@ defmodule RedisCluster.AskTest do
       # Set up Mox expectations for the ASK redirect flow
       MockRedis
       |> expect(:pipeline, fn _conn, [["SET", _key, _value]] ->
-        # First call returns an ASK redirect
-        {:error, %Redix.Error{message: "ASK 12345 192.168.1.100:6379"}}
+        # First call returns an ASK redirect, embedded in a successful pipeline reply
+        # (this is how Redix actually surfaces Redis-level errors).
+        {:ok, [%Redix.Error{message: "ASK 12345 192.168.1.100:6379"}]}
       end)
       |> expect(:pipeline, fn _conn, [["ASKING"], ["SET", _key, _value]] ->
         {:ok, ["OK", "OK"]}
@@ -54,7 +55,7 @@ defmodule RedisCluster.AskTest do
 
       MockRedis
       |> expect(:pipeline, fn _conn, [["GET", _key]] ->
-        {:error, %Redix.Error{message: "ASK 12345 192.168.1.100:6379"}}
+        {:ok, [%Redix.Error{message: "ASK 12345 192.168.1.100:6379"}]}
       end)
       |> expect(:pipeline, fn _conn, [["ASKING"], ["GET", _key]] ->
         {:ok, ["OK", "test_value"]}
@@ -73,7 +74,7 @@ defmodule RedisCluster.AskTest do
 
       MockRedis
       |> expect(:pipeline, fn _conn, [["DEL", _key]] ->
-        {:error, %Redix.Error{message: "ASK 12345 192.168.1.100:6379"}}
+        {:ok, [%Redix.Error{message: "ASK 12345 192.168.1.100:6379"}]}
       end)
       |> expect(:pipeline, fn _conn, [["ASKING"], ["DEL", _key]] ->
         {:ok, ["OK", 1]}
@@ -92,7 +93,11 @@ defmodule RedisCluster.AskTest do
 
       MockRedis
       |> expect(:pipeline, fn _conn, [["GET", _key1], ["SET", _key2, _value2]] ->
-        {:error, %Redix.Error{message: "ASK 12345 192.168.1.100:6379"}}
+        {:ok,
+         [
+           %Redix.Error{message: "ASK 12345 192.168.1.100:6379"},
+           %Redix.Error{message: "ASK 12345 192.168.1.100:6379"}
+         ]}
       end)
       |> expect(:pipeline, fn _conn, [["ASKING"], ["GET", _key1], ["SET", _key2, _value2]] ->
         {:ok, ["OK", "value1", "OK"]}
@@ -118,7 +123,11 @@ defmodule RedisCluster.AskTest do
 
       MockRedis
       |> expect(:pipeline, fn _conn, [["GET", _key1], ["SET", _key2, _value2]] ->
-        {:error, %Redix.Error{message: "ASK 12345 :6380"}}
+        {:ok,
+         [
+           %Redix.Error{message: "ASK 12345 :6380"},
+           %Redix.Error{message: "ASK 12345 :6380"}
+         ]}
       end)
       |> expect(:pipeline, fn _conn, [["ASKING"], ["GET", _key1], ["SET", _key2, _value2]] ->
         {:ok, ["OK", "value1", "OK"]}

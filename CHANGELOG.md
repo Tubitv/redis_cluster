@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Replica connections losing `READONLY` mode after Redix silently reconnects them (e.g. on an ElastiCache node replacement), which caused reads to be rejected with `MOVED` until the pod restarted
+- `MOVED`/`ASK` redirects were never triggering rediscovery on the normal command path (`get`, `set`, `del`, `mget`, `set_many`, `set_many_async`, etc.). Redix embeds Redis-level errors (like `MOVED`) as `Redix.Error` structs inside a successful `{:ok, results}` pipeline reply rather than as a top-level `{:error, _}` tuple, but the redirect-detection code only checked for the latter shape, so it was unreachable. In practice this meant a client that lost `READONLY` (or any other redirect-causing topology change) would keep hitting `MOVED` forever instead of self-healing via rediscovery
+
+### Added
+- `[:redis_cluster, :connection, :readonly_resent]` telemetry event, emitted whenever `READONLY` is re-sent to a replica connection after a Redix reconnect
+
 ## [0.8.0] - 2026-01-06
 
 ### Added
