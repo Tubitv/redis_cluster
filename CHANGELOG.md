@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Replica connections losing `READONLY` mode after Redix silently reconnects them (e.g. on an ElastiCache node replacement), which caused reads to be rejected with `MOVED` until the pod restarted
+
+### Added
+- `[:redis_cluster, :connection, :readonly_resent]` telemetry event, emitted whenever `READONLY` is re-sent to a replica connection after a Redix reconnect
+
 ## [0.8.0] - 2026-01-06
 
 ### Added
