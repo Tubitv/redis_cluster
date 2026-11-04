@@ -65,7 +65,7 @@ mix compile --warnings-as-errors --force
 mix dialyzer            # CI runs it on the newest Elixir/OTP only; first run builds PLTs and is slow
 ```
 
-CI matrix: Elixir 1.17-1.18, OTP 25-27 (`.github/workflows/ci.yml`). Keep code compatible with `elixir: "~> 1.14"`.
+CI matrix: Elixir 1.17-1.18, OTP 26-27, all pinned to `ubuntu-26.04` (`.github/workflows/ci.yml`). Don't use `ubuntu-latest`; OTP builds on builds.hex.pm differ per Ubuntu release and `latest` moves. Keep code compatible with `elixir: "~> 1.14"`.
 
 ## Conventions
 
