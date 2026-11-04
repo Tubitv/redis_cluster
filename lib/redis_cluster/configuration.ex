@@ -146,6 +146,24 @@ defmodule RedisCluster.Configuration do
     end
   end
 
+  @doc """
+  Builds the options passed to `Redix.start_link/1` for connecting to the host and port in the config.
+
+  When `ssl` is enabled this sets Redix's own `ssl: true` flag and passes `ssl_opts` as the
+  `:socket_opts`. Redix only uses TLS when `ssl: true` is given; the options for the socket
+  are the TLS options themselves, not nested under an `:ssl` key.
+  """
+  @spec redix_opts(t()) :: Keyword.t()
+  def redix_opts(%__MODULE__{} = config) do
+    base_opts = [host: config.host, port: config.port]
+
+    if config.ssl do
+      base_opts ++ [ssl: true, socket_opts: config.ssl_opts]
+    else
+      base_opts
+    end
+  end
+
   defp fetch_name(name, env, key, suffix) do
     Keyword.get(env, key) || Module.concat([name, suffix])
   end

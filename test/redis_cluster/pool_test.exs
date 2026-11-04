@@ -72,12 +72,14 @@ defmodule RedisCluster.PoolTest do
       assert conn_opts[:port] == 7000
       assert Keyword.has_key?(conn_opts, :name)
       refute Keyword.has_key?(conn_opts, :socket_opts)
+      refute Keyword.has_key?(conn_opts, :ssl)
 
       assert_received {:redis_start_link, conn_opts2}
       assert conn_opts2[:host] == "redis-node-1.example.com"
       assert conn_opts2[:port] == 7000
       assert Keyword.has_key?(conn_opts2, :name)
       refute Keyword.has_key?(conn_opts2, :socket_opts)
+      refute Keyword.has_key?(conn_opts2, :ssl)
     end
 
     test "builds connection options with SSL enabled", %{config: base_config} do
@@ -103,18 +105,20 @@ defmodule RedisCluster.PoolTest do
       assert conn_opts[:port] == 6380
       assert Keyword.has_key?(conn_opts, :name)
 
-      assert conn_opts[:socket_opts] == [
-               ssl: [verify: :verify_peer, cacertfile: "/path/to/ca.crt"]
-             ]
+      assert conn_opts[:ssl] == true
+
+      assert conn_opts[:socket_opts] ==
+               [verify: :verify_peer, cacertfile: "/path/to/ca.crt"]
 
       assert_received {:redis_start_link, conn_opts2}
       assert conn_opts2[:host] == "secure-redis.example.com"
       assert conn_opts2[:port] == 6380
       assert Keyword.has_key?(conn_opts2, :name)
 
-      assert conn_opts2[:socket_opts] == [
-               ssl: [verify: :verify_peer, cacertfile: "/path/to/ca.crt"]
-             ]
+      assert conn_opts2[:ssl] == true
+
+      assert conn_opts2[:socket_opts] ==
+               [verify: :verify_peer, cacertfile: "/path/to/ca.crt"]
     end
 
     test "builds connection options with comprehensive SSL options", %{config: base_config} do
@@ -146,15 +150,16 @@ defmodule RedisCluster.PoolTest do
       assert conn_opts[:port] == 6379
       assert Keyword.has_key?(conn_opts, :name)
 
-      assert conn_opts[:socket_opts] == [
-               ssl: [
+      assert conn_opts[:ssl] == true
+
+      assert conn_opts[:socket_opts] ==
+               [
                  verify: :verify_peer,
                  cacertfile: "/etc/ssl/certs/ca.pem",
                  certfile: "/etc/ssl/certs/client.pem",
                  keyfile: "/etc/ssl/private/client.key",
                  server_name_indication: ~c"redis.example.com"
                ]
-             ]
     end
 
     test "preserves separate connection names for pool members", %{config: config} do

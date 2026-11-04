@@ -70,7 +70,7 @@ defmodule RedisCluster.ClusterInfo do
   defp cluster_shards(conn, config) do
     case config.redis_module.command(conn, ~w[CLUSTER SHARDS]) do
       {:ok, data} ->
-        RedisCluster.Cluster.ShardParser.parse(data)
+        RedisCluster.Cluster.ShardParser.parse(data, ssl: config.ssl)
 
       {:error, %Redix.Error{message: "ERR This instance has cluster support disabled"}} ->
         standalone_info(conn, config)
@@ -119,13 +119,5 @@ defmodule RedisCluster.ClusterInfo do
     result
   end
 
-  defp build_conn_opts(config) do
-    base_opts = [host: config.host, port: config.port]
-
-    if config.ssl do
-      Keyword.put(base_opts, :socket_opts, ssl: config.ssl_opts)
-    else
-      base_opts
-    end
-  end
+  defp build_conn_opts(config), do: Configuration.redix_opts(config)
 end

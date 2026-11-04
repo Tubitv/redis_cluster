@@ -96,13 +96,5 @@ defmodule RedisCluster.Pool do
     {:via, Registry, {registry, {host, port, index}}}
   end
 
-  defp build_conn_opts(config) do
-    base_opts = [host: config.host, port: config.port]
-
-    if config.ssl do
-      Keyword.put(base_opts, :socket_opts, ssl: config.ssl_opts)
-    else
-      base_opts
-    end
-  end
+  defp build_conn_opts(config), do: Configuration.redix_opts(config)
 end

@@ -1359,4 +1359,148 @@ defmodule RedisCluster.Cluster.ShardParserTest do
       ]
     ]
   end
+
+  describe "ElastiCache Serverless" do
+    # Shape of a real ElastiCache Serverless (Valkey 8.1) reply: loopback ip, tls-port only, DNS name in endpoint/hostname. Names and ids are made up.
+    test "uses the endpoint instead of a loopback ip, and tls-port instead of port" do
+      result = serverless_data() |> ShardParser.parse(ssl: true)
+
+      assert [master, replica] = Enum.sort_by(result, & &1.port)
+
+      assert %NodeInfo{
+               host: "example-cache-abc123.serverless.use1.cache.amazonaws.com",
+               port: 6379,
+               role: :master,
+               health: :online
+             } = master
+
+      assert %NodeInfo{
+               host: "example-cache-abc123.serverless.use1.cache.amazonaws.com",
+               port: 6380,
+               role: :replica,
+               health: :online
+             } = replica
+
+      assert master.slots == [
+               {RedisCluster.HashSlots, 0, 16383, :master,
+                "example-cache-abc123.serverless.use1.cache.amazonaws.com", 6379}
+             ]
+    end
+
+    test "falls back to tls-port when there is no port, even when ssl is not requested" do
+      assert [%NodeInfo{port: 6379}, %NodeInfo{port: 6380}] =
+               serverless_data() |> ShardParser.parse() |> Enum.sort_by(& &1.port)
+    end
+
+    test "prefers tls-port over port when ssl is requested" do
+      data = [
+        [
+          "slots",
+          [0, 16383],
+          "nodes",
+          [
+            [
+              "id",
+              "a",
+              "port",
+              6379,
+              "tls-port",
+              6380,
+              "ip",
+              "10.0.0.1",
+              "endpoint",
+              "10.0.0.1",
+              "role",
+              "master",
+              "replication-offset",
+              0,
+              "health",
+              "online"
+            ]
+          ]
+        ]
+      ]
+
+      assert [%NodeInfo{host: "10.0.0.1", port: 6380}] = ShardParser.parse(data, ssl: true)
+      assert [%NodeInfo{host: "10.0.0.1", port: 6379}] = ShardParser.parse(data)
+    end
+
+    test "keeps a loopback ip when the node reports no other name" do
+      data = [
+        [
+          "slots",
+          [0, 100],
+          "nodes",
+          [
+            [
+              "id",
+              "a",
+              "port",
+              7000,
+              "ip",
+              "127.0.0.1",
+              "endpoint",
+              "127.0.0.1",
+              "role",
+              "master",
+              "replication-offset",
+              0,
+              "health",
+              "online"
+            ]
+          ]
+        ]
+      ]
+
+      assert [%NodeInfo{host: "127.0.0.1", port: 7000}] = ShardParser.parse(data)
+    end
+  end
+
+  defp serverless_data() do
+    [
+      [
+        "slots",
+        [0, 16383],
+        "nodes",
+        [
+          [
+            "id",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "ip",
+            "127.0.0.1",
+            "endpoint",
+            "example-cache-abc123.serverless.use1.cache.amazonaws.com",
+            "hostname",
+            "example-cache-abc123.serverless.use1.cache.amazonaws.com",
+            "role",
+            "master",
+            "replication-offset",
+            0,
+            "health",
+            "online",
+            "tls-port",
+            6379
+          ],
+          [
+            "id",
+            "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "ip",
+            "127.0.0.1",
+            "endpoint",
+            "example-cache-abc123.serverless.use1.cache.amazonaws.com",
+            "hostname",
+            "example-cache-abc123.serverless.use1.cache.amazonaws.com",
+            "role",
+            "replica",
+            "replication-offset",
+            0,
+            "health",
+            "online",
+            "tls-port",
+            6380
+          ]
+        ]
+      ]
+    ]
+  end
 end
