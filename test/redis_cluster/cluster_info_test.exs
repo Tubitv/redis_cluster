@@ -51,6 +51,7 @@ defmodule RedisCluster.ClusterInfoTest do
       assert opts[:host] == "redis.example.com"
       assert opts[:port] == 6379
       refute Keyword.has_key?(opts, :socket_opts)
+      refute Keyword.has_key?(opts, :ssl)
     end
 
     test "builds connection options with SSL enabled" do
@@ -73,7 +74,8 @@ defmodule RedisCluster.ClusterInfoTest do
       assert_received {:start_link_called, opts}
       assert opts[:host] == "redis.example.com"
       assert opts[:port] == 6380
-      assert opts[:socket_opts] == [ssl: [verify: :verify_peer, cacertfile: "/path/to/ca.crt"]]
+      assert opts[:ssl] == true
+      assert opts[:socket_opts] == [verify: :verify_peer, cacertfile: "/path/to/ca.crt"]
     end
 
     test "builds connection options with SSL and empty ssl_opts" do
@@ -96,7 +98,8 @@ defmodule RedisCluster.ClusterInfoTest do
       assert_received {:start_link_called, opts}
       assert opts[:host] == "localhost"
       assert opts[:port] == 7000
-      assert opts[:socket_opts] == [ssl: []]
+      assert opts[:ssl] == true
+      assert opts[:socket_opts] == []
     end
   end
 
@@ -122,6 +125,7 @@ defmodule RedisCluster.ClusterInfoTest do
       assert opts[:host] == "redis.example.com"
       assert opts[:port] == 6379
       refute Keyword.has_key?(opts, :socket_opts)
+      refute Keyword.has_key?(opts, :ssl)
     end
 
     test "builds connection options with SSL enabled" do
@@ -150,14 +154,15 @@ defmodule RedisCluster.ClusterInfoTest do
       assert opts[:host] == "secure-redis.example.com"
       assert opts[:port] == 6380
 
-      assert opts[:socket_opts] == [
-               ssl: [
+      assert opts[:ssl] == true
+
+      assert opts[:socket_opts] ==
+               [
                  verify: :verify_peer,
                  cacertfile: "/path/to/ca.crt",
                  certfile: "/path/to/client.crt",
                  keyfile: "/path/to/client.key"
                ]
-             ]
     end
   end
 end

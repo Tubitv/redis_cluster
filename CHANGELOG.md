@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-04
+
+### Fixed
+- `ssl: true` never enabled TLS. `Pool` and `ClusterInfo` passed `socket_opts: [ssl: ssl_opts]` to Redix without Redix's own `ssl: true`, so connections were plain TCP and the options were nested one level too deep. Both now use `Configuration.redix_opts/1`, which sets `ssl: true` and passes `ssl_opts` directly as `socket_opts`. **Behaviour change:** configs that set `ssl: true` now actually use TLS.
+- `CLUSTER SHARDS` parsing for ElastiCache Serverless, which reports a loopback `ip` (`127.0.0.1`) and only a `tls-port` (no `port`), with the DNS name in `endpoint`/`hostname`. `ShardParser.parse/2` now uses a non-loopback `endpoint`/`hostname` in place of a loopback `ip`, and falls back to `tls-port` (preferring it when `ssl: true`)
+
+## [0.8.1] - 2026-08-24
+
 ### Fixed
 - Replica connections losing `READONLY` mode after Redix silently reconnects them (e.g. on an ElastiCache node replacement), which caused reads to be rejected with `MOVED` until the pod restarted
 - `MOVED`/`ASK` redirects were never triggering rediscovery on the normal command path (`get`, `set`, `del`, `mget`, `set_many`, `set_many_async`, etc.). Redix embeds Redis-level errors (like `MOVED`) as `Redix.Error` structs inside a successful `{:ok, results}` pipeline reply rather than as a top-level `{:error, _}` tuple, but the redirect-detection code only checked for the latter shape, so it was unreachable. In practice this meant a client that lost `READONLY` (or any other redirect-causing topology change) would keep hitting `MOVED` forever instead of self-healing via rediscovery
